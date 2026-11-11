@@ -470,6 +470,15 @@ function App() {
     return taskFilter === 'open' ? activeBike.tasks.filter((task) => !task.done) : activeBike.tasks;
   }, [activeBike, taskFilter]);
 
+  const visibleAllTasks = useMemo(
+    () => garage.bikes.flatMap((bike) =>
+      bike.tasks
+        .filter((task) => taskFilter === 'all' || !task.done)
+        .map((task) => ({ bike, task })),
+    ),
+    [garage.bikes, taskFilter],
+  );
+
   const visiblePlanBikes = useMemo(
     () => planBikeFilter === 'all' ? garage.bikes : garage.bikes.filter((bike) => bike.id === planBikeFilter),
     [garage.bikes, planBikeFilter],
@@ -535,7 +544,7 @@ function App() {
       title,
       category: category || 'Egyéb',
       done: false,
-      period: garage.planningPeriods.includes(period) ? period : 'Bármikor',
+      period: garage.planningPeriods.includes(period) ? period : garage.planningPeriods[0] ?? 'Bármikor',
     };
     updateBike(bikeId, (currentBike) => ({ ...currentBike, tasks: [task, ...currentBike.tasks] }));
     form.reset();
@@ -1243,22 +1252,32 @@ function App() {
                 <p className="eyebrow">A KÖVETKEZŐ LÉPÉSEK</p>
                 <h2>Teendők <span className="heading-count">{openTasks} nyitott</span></h2>
               </div>
-              {activeBike && <span className="selected-bike-label">{activeBike.name}</span>}
+              <span className="selected-bike-label">{t('Minden motor együtt')}</span>
             </div>
-            {activeBike ? (
+            {garage.bikes.length ? (
               <>
                 <form className="task-form" onSubmit={addTask}>
                   <label className="sr-only" htmlFor="global-task-title">Új teendő neve</label>
                   <input id="global-task-title" name="title" placeholder="Mit kell megcsinálni ezen a motoron?" required />
+                  <label className="sr-only" htmlFor="global-task-bike">Motorkerékpár</label>
+                  <select id="global-task-bike" name="bikeId" required defaultValue={activeBike?.id ?? garage.bikes[0].id}>
+                    {garage.bikes.map((bike) => <option key={bike.id} value={bike.id}>{bike.name}</option>)}
+                  </select>
                   <label className="sr-only" htmlFor="global-task-category">Munkaterület</label>
                   <input id="global-task-category" name="category" placeholder="Munkaterület" />
                   <label className="sr-only" htmlFor="global-task-period">Tervezett időszak</label>
-                  <select id="global-task-period" name="period" defaultValue="Bármikor" aria-label="Tervezett időszak">
+                  <select id="global-task-period" name="period" defaultValue={garage.planningPeriods.includes('Bármikor') ? 'Bármikor' : garage.planningPeriods[0]} aria-label="Tervezett időszak">
                     {garage.planningPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
                   </select>
                   <button className="button button-primary" type="submit">＋ Hozzáadás</button>
                 </form>
-                <TaskList tasks={visibleTasks} filter={taskFilter} onFilterChange={setTaskFilter} onToggle={toggleTask} onRemove={removeTask} />
+                <TaskList
+                  tasks={visibleAllTasks}
+                  filter={taskFilter}
+                  onFilterChange={setTaskFilter}
+                  onToggle={toggleBikeTask}
+                  onRemove={removeBikeTask}
+                />
               </>
             ) : (
               <div className="empty-tasks"><p>Válassz ki vagy adj hozzá egy motort a teendők kezeléséhez.</p><button className="button button-primary" onClick={() => setShowBikeForm(true)}>＋ Motor hozzáadása</button></div>
@@ -1467,7 +1486,7 @@ function BikeDetails({
           <input id="task-title" name="title" placeholder="Adj hozzá egy új teendőt…" required />
           <label className="sr-only" htmlFor="task-category">Munkaterület</label>
           <select id="task-category" name="category" defaultValue="Blokk & karburátor">
-            <option>Blokk & karburátor</option><option>Futómű & fékek</option><option>Váz & karosszéria</option><option>Elektromosság</option><option>Tank & üzemanyag</option><option>Egyéb</option>
+            <option value="Blokk & karburátor">Blokk & karburátor</option><option value="Futómű & fékek">Futómű & fékek</option><option value="Váz & karosszéria">Váz & karosszéria</option><option value="Elektromosság">Elektromosság</option><option value="Tank & üzemanyag">Tank & üzemanyag</option><option value="Egyéb">Egyéb</option>
           </select>
           <label className="sr-only" htmlFor="task-period">Tervezett időszak</label>
           <select id="task-period" name="period" defaultValue="Bármikor" aria-label="Tervezett időszak">
@@ -1475,7 +1494,13 @@ function BikeDetails({
           </select>
           <button className="button button-primary task-add-button" type="submit" aria-label="Teendő hozzáadása">＋</button>
         </form>
-        <TaskList tasks={tasks} filter={taskFilter} onFilterChange={onFilterChange} onToggle={onToggleTask} onRemove={onRemoveTask} />
+        <TaskList
+          tasks={tasks.map((task) => ({ bike, task }))}
+          filter={taskFilter}
+          onFilterChange={onFilterChange}
+          onToggle={(_bikeId, taskId) => onToggleTask(taskId)}
+          onRemove={(_bikeId, taskId) => onRemoveTask(taskId)}
+        />
       </article>
     </section>
     </Localized>
@@ -1841,11 +1866,11 @@ function HomeTasksPanel({ bikes, planningPeriods, onAddTask, onToggleTask, onOpe
 }
 
 interface TaskListProps {
-  tasks: BikeTask[];
+  tasks: { bike: Bike; task: BikeTask }[];
   filter: TaskFilter;
   onFilterChange: (filter: TaskFilter) => void;
-  onToggle: (taskId: string) => void;
-  onRemove: (taskId: string) => void;
+  onToggle: (bikeId: string, taskId: string) => void;
+  onRemove: (bikeId: string, taskId: string) => void;
 }
 
 function TaskList({ tasks, filter, onFilterChange, onToggle, onRemove }: TaskListProps) {
@@ -1862,13 +1887,13 @@ function TaskList({ tasks, filter, onFilterChange, onToggle, onRemove }: TaskLis
       </div>
       {tasks.length ? (
         <ul className="task-list">
-          {tasks.map((task) => (
-            <li className={task.done ? 'task-row is-done' : 'task-row'} key={task.id}>
-              <button className="task-check" type="button" onClick={() => onToggle(task.id)} aria-label={task.done ? 'Feladat visszaállítása nyitottra' : 'Feladat készre jelölése'} aria-pressed={task.done}>
+          {tasks.map(({ bike, task }) => (
+            <li className={task.done ? 'task-row is-done' : 'task-row'} key={`${bike.id}:${task.id}`}>
+              <button className="task-check" type="button" onClick={() => onToggle(bike.id, task.id)} aria-label={task.done ? 'Feladat visszaállítása nyitottra' : 'Feladat készre jelölése'} aria-pressed={task.done}>
                 {task.done ? '✓' : ''}
               </button>
-              <span className="task-copy"><strong>{task.title}</strong><small>{task.category}</small></span>
-              <button className="task-remove" type="button" onClick={() => onRemove(task.id)} aria-label={`${t('Teendő törlése')}: ${task.title}`}>×</button>
+              <span className="task-copy"><strong>{task.title}</strong><small>{bike.name} · {task.category}</small></span>
+              <button className="task-remove" type="button" onClick={() => onRemove(bike.id, task.id)} aria-label={`${t('Teendő törlése')}: ${task.title}`}>×</button>
             </li>
           ))}
         </ul>
@@ -1954,7 +1979,7 @@ function SeasonPlanner({
         </select>
         <label className="sr-only" htmlFor="planner-category">Munkaterület</label>
         <select id="planner-category" name="category" defaultValue="Egyéb">
-          <option>Blokk & karburátor</option><option>Futómű & fékek</option><option>Váz & karosszéria</option><option>Elektromosság</option><option>Tank & üzemanyag</option><option>Egyéb</option>
+          <option value="Blokk & karburátor">Blokk & karburátor</option><option value="Futómű & fékek">Futómű & fékek</option><option value="Váz & karosszéria">Váz & karosszéria</option><option value="Elektromosság">Elektromosság</option><option value="Tank & üzemanyag">Tank & üzemanyag</option><option value="Egyéb">Egyéb</option>
         </select>
         <button className="button button-primary task-add-button" type="submit" aria-label="Teendő hozzáadása" disabled={!allBikes.length}>＋</button>
       </form>
@@ -1962,8 +1987,8 @@ function SeasonPlanner({
         <label>
           <span>Időszak</span>
           <select value={periodFilter} onChange={(event) => onPeriodFilterChange(event.target.value)}>
-            <option>Összes</option>
-            {periods.map((period) => <option key={period}>{period}</option>)}
+            <option value="Összes">Összes</option>
+            {periods.map((period) => <option key={period} value={period}>{period}</option>)}
           </select>
         </label>
         <label>
@@ -2009,7 +2034,7 @@ function SeasonPlanner({
                     <select id={`period-${bike.id}-${task.id}`} className="planner-task-season" value={task.period ?? 'Bármikor'} onChange={(event) => {
                       if (periods.includes(event.target.value)) onSetTaskPeriod(bike.id, task.id, event.target.value);
                     }}>
-                      {periods.map((option) => <option key={option}>{option}</option>)}
+                      {periods.map((option) => <option key={option} value={option}>{option}</option>)}
                     </select>
                     <button className="task-remove" type="button" onClick={() => onRemoveTask(bike.id, task.id)} aria-label={`${t('Teendő törlése')}: ${task.title}`}>×</button>
                   </li>
@@ -2075,7 +2100,7 @@ function ShoppingList({
         <input id="shopping-quantity" className="shopping-quantity" name="quantity" placeholder="Mennyiség" />
         <label className="sr-only" htmlFor="shopping-category">Típus</label>
         <select id="shopping-category" name="category" defaultValue="Műhelyanyag">
-          {shoppingCategories.map((category) => <option key={category}>{category}</option>)}
+          {shoppingCategories.map((category) => <option key={category} value={category}>{category}</option>)}
         </select>
         <label className="sr-only" htmlFor="shopping-bike">Hová kerüljön?</label>
         <select id="shopping-bike" name="bikeId" defaultValue="workshop">
@@ -2118,7 +2143,7 @@ function ShoppingList({
                   if (status) onUpdateStatus(item.id, status);
                 }}
               >
-                {shoppingStatuses.map((status) => <option key={status}>{status}</option>)}
+                {shoppingStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
               </select>
               <button className="task-remove" type="button" onClick={() => onRemoveItem(item.id)} aria-label={`${t('Tétel törlése')}: ${item.name}`}>×</button>
             </li>

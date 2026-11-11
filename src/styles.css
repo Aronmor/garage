@@ -490,6 +490,8 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
   .header-menu-button { min-height: 32px; padding: 0 8px; font-size: 9px; }
   .offline-badge { padding: 6px; font-size: 9px; }
   .page { width: calc(100% - 30px); padding-top: 29px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]), textarea { font-size: 16px; }
+  .task-form select, .planner-form select, .shopping-form select, .planner-filters select, .shopping-toolbar select, .planner-task-season, .shopping-status { font-size: 12px; }
   .nav-item { min-height: 48px; padding: 0 2px 10px; gap: 9px; font-size: 14px; }
   .nav-icon { font-size: 17px; }
   .main-nav-scroll-button { height: 48px; }

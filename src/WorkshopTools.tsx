@@ -267,7 +267,7 @@ export default function WorkshopTools({
               const customDurationMs = timer.customDurationMinutes ? timer.customDurationMinutes * 60_000 : 0;
               const title = preset?.title ?? timer.customTitle;
               if (!title || (!preset && !customDurationMs)) return null;
-              const factor = preset ? temperatureFactor(timer.tempAtStart) : 1;
+              const factor = preset ? temperatureFactor(workshopTempC) : 1;
               const elapsed = now - timer.startedAt;
               const minMs = preset ? preset.minMs * factor : customDurationMs;
               const targetMs = preset ? preset.targetMs * factor : customDurationMs;
@@ -281,7 +281,7 @@ export default function WorkshopTools({
               return (
                 <article className={`active-timer ${elapsed >= maxMs ? 'timer-expired' : ''}`} key={timer.id}>
                   <div className="active-timer-heading">
-                    <div><strong>{title}</strong><small>{bikes.find((bike) => bike.id === timer.bikeId)?.name ?? 'Közös műhely'} · indításkor {timer.tempAtStart} °C</small></div>
+                    <div><strong>{title}</strong><small>{bikes.find((bike) => bike.id === timer.bikeId)?.name ?? 'Közös műhely'} · {language === 'de' ? 'aktuell' : 'jelenleg'} {workshopTempC} °C</small></div>
                     <button className="timer-cancel-button" type="button" onClick={() => onDeleteTimer(timer.id)}>Időzítő leállítása</button>
                   </div>
                   <div className="timer-progress"><span style={{ width: `${progress}%` }} /></div>
