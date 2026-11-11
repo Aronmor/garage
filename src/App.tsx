@@ -265,6 +265,31 @@ function isGarageData(value: unknown): value is GarageData {
   );
 }
 
+function describeInvalidNotionResponse(value: unknown): string {
+  if (!isRecord(value)) return 'Die Worker-Antwort ist kein JSON-Objekt.';
+  if (!isGarageData(value.garage)) {
+    if (!isRecord(value.garage)) return 'In der Worker-Antwort fehlt das Garagenobjekt.';
+    if (!Array.isArray(value.garage.bikes)) return 'Die Motorraddaten in der Worker-Antwort fehlen oder sind ungültig.';
+    const invalidBikeIndex = value.garage.bikes.findIndex((bike) => !isBike(bike));
+    if (invalidBikeIndex >= 0) return `Der Motorraddatensatz Nr. ${invalidBikeIndex + 1} passt nicht zum App-Datenformat.`;
+    if (value.garage.documents !== undefined &&
+        (!Array.isArray(value.garage.documents) || !value.garage.documents.every(isBikeDocument))) {
+      return 'Die Dokumentliste in der Worker-Antwort passt nicht zum App-Datenformat.';
+    }
+    return 'Die Garagendaten in der Worker-Antwort passen nicht zum App-Datenformat.';
+  }
+  if (!Array.isArray(value.files)) return 'Die Dateiliste in der Worker-Antwort fehlt oder ist ungültig.';
+  const invalidFileIndex = value.files.findIndex((file) =>
+    !isRecord(file) ||
+    typeof file.id !== 'string' ||
+    typeof file.bikeId !== 'string' ||
+    typeof file.kind !== 'string' ||
+    typeof file.name !== 'string',
+  );
+  if (invalidFileIndex >= 0) return `Der Dateieintrag Nr. ${invalidFileIndex + 1} in der Worker-Antwort ist ungültig.`;
+  return 'Die Worker-Antwort passt nicht zum erwarteten Synchronisierungsformat.';
+}
+
 function loadGarage(): { data: GarageData; warning: string | null } {
   let migrationWarning: string | null = null;
   try {
@@ -1149,7 +1174,7 @@ function App() {
             typeof file.bikeId === 'string' &&
             typeof file.kind === 'string' &&
             typeof file.name === 'string')) {
-        throw new Error('Der Worker hat ungültige Notion-Synchronisierungsdaten zurückgegeben.');
+        throw new Error(`Notion-Synchronisierung: ${describeInvalidNotionResponse(result)}`);
       }
       const syncedGarage = result.garage;
       const remoteFiles = new Map(result.files.map((file) => [file.id, file]));
