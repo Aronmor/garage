@@ -7,7 +7,7 @@ Ein erster, eigenständiger React-/TypeScript-Neustart des ungarischen Werkstatt
 Voraussetzung ist Node.js 18+ oder Bun.
 
 ```powershell
-cd C:\Users\fispa\Downloads\muhely-garazs-app
+cd C:\path\to\muhely-garazs-app
 bun install
 bun run dev
 ```
