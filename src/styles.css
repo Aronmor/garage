@@ -444,6 +444,9 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
 .modal-heading h2 { margin: 0; color: #efeee7; font-size: 19px; }
 .language-setting { display: grid; grid-template-columns: 1fr minmax(120px, 42%); align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid #30332b; color: #bfc0b6; font-size: 10px; }
 .language-setting select { height: 36px; padding: 0 9px; border: 1px solid #34372f; border-radius: 6px; background: #11130f; color: #e3e3dc; font-size: 10px; }
+.name-setting { display: grid; gap: 8px; padding: 14px 0; border-bottom: 1px solid #30332b; color: #bfc0b6; font-size: 10px; }
+.name-setting input { width: 100%; height: 36px; padding: 0 9px; border: 1px solid #34372f; border-radius: 6px; background: #11130f; color: #e3e3dc; font: inherit; }
+.name-setting small { color: #898d82; line-height: 1.5; }
 .bike-form { display: grid; gap: 8px; padding-top: 19px; }
 .bike-form label { margin-top: 5px; color: #bfc0b6; font-size: 10px; font-weight: 600; }
 .bike-form input { width: 100%; height: 42px; font-size: 12px; }

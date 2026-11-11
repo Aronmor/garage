@@ -308,6 +308,14 @@ function App() {
       return 'hu';
     }
   });
+  const [ownerName, setOwnerName] = useState(() => {
+    try {
+      return localStorage.getItem('muhelygarazs_owner_name') ?? '';
+    } catch (error) {
+      console.error('A megjelenített nevet nem sikerült beolvasni:', error);
+      return '';
+    }
+  });
   const t = (text: string) => translate(language, text);
   const [photosReady, setPhotosReady] = useState(false);
   const [photoMigrationFailed, setPhotoMigrationFailed] = useState(false);
@@ -345,6 +353,20 @@ function App() {
       setStorageMessage('A nyelvi beállítást nem sikerült elmenteni ezen az eszközön.');
     }
   }, [language]);
+
+  useEffect(() => {
+    try {
+      const name = ownerName.trim();
+      if (name) {
+        localStorage.setItem('muhelygarazs_owner_name', name);
+      } else {
+        localStorage.removeItem('muhelygarazs_owner_name');
+      }
+    } catch (error) {
+      console.error('A megjelenített nevet nem sikerült elmenteni:', error);
+      setStorageMessage('A megjelenített nevet nem sikerült elmenteni ezen az eszközön.');
+    }
+  }, [ownerName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -979,7 +1001,11 @@ function App() {
         <section className="welcome-row">
           <div>
             <p className="eyebrow">SAJÁT MOTOROS MŰHELYED</p>
-            <h1>Jó napot, Műhely! <span className="wave">✳</span></h1>
+            <h1>{ownerName.trim()
+              ? language === 'de'
+                ? `Guten Tag, ${ownerName.trim()}!`
+                : `Jó napot, ${ownerName.trim()}!`
+              : t('Jó napot, Műhely!')} <span className="wave">✳</span></h1>
             <p className="welcome-copy">Minden projekted és teendőd egy helyen.</p>
           </div>
           <button className="button button-primary" type="button" onClick={() => setShowBikeForm(true)}>
@@ -1278,6 +1304,19 @@ function App() {
                 <option value="hu">Magyar</option>
                 <option value="de">Deutsch</option>
               </select>
+            </label>
+            <label className="name-setting" htmlFor="owner-name">
+              <span>{t('Megjelenített név')}</span>
+              <input
+                id="owner-name"
+                type="text"
+                autoComplete="given-name"
+                maxLength={40}
+                value={ownerName}
+                onChange={(event) => setOwnerName(event.target.value)}
+                placeholder={t('Például: Anna')}
+              />
+              <small>{t('A név csak ezen az eszközön és ebben a böngészőben tárolódik.')}</small>
             </label>
             <div className="backup-help">
               {!isStandalone && (

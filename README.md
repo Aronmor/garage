@@ -37,6 +37,8 @@ Die App nach dem ersten Aufruf kurz laden lassen. Danach funktionieren die App-O
 
 Die Daten werden pro Gerät im jeweiligen Browser gespeichert; es gibt keine Synchronisierung zwischen Handy und PC. Textdaten liegen in `localStorage`, Dokumentationsfotos separat in der lokalen IndexedDB des Browsers. Browserdaten können verloren gehen, wenn Browserdaten oder die App-Speicherung gelöscht werden. Über **Adatmentés** kannst du deshalb ein JSON-Backup herunterladen und auf einem anderen Gerät oder nach einer Neuinstallation wieder einspielen. Das Backup enthält die Fotos eingebettet; dadurch kann die JSON-Datei je nach Anzahl und Größe der Fotos groß werden. Der Import ersetzt nach einer Bestätigung die vorhandenen App-Daten und lokalen Fotos. Bewahre die Backupdatei sicher auf; sie kann persönliche Motorraddaten und Fotos enthalten. Fotos werden für die Speicherung optimiert, aber es gibt kein festes Gesamtlimit in der App. Der tatsächlich verfügbare lokale Speicher hängt vom Browser und Gerät ab und ist nicht unbegrenzt; regelmäßige Backups bleiben wichtig. Die Originalfotos, hochgeladenen PDFs und der Gemini-API-Schlüssel werden nicht separat gespeichert.
 
+Den Namen für die Begrüßung kannst du unter **Menü → Einstellungen und Datensicherung → Anzeigename** eintragen. Browser dürfen den Namen des Gerätebesitzers nicht automatisch auslesen; der eingegebene Name bleibt lokal in diesem Browser und wird nicht in die Garagensicherung übernommen.
+
 ## Im ersten Stand enthalten
 
 - Motorrad-Garage mit den Jawa-/Simson-Beispielprojekten
