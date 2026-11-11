@@ -26,6 +26,8 @@ Die Gemini-Funktion sendet den API-Schlüssel direkt vom Browser an Google; es g
 
 Die Garagendaten bleiben pro Gerät im jeweiligen Browser gespeichert und werden nicht zwischen Geräten synchronisiert. Die öffentlich erreichbare App bedeutet nicht, dass die darin gespeicherten Browserdaten öffentlich geteilt werden.
 
+Eine optionale, manuell gestartete Einweg-Synchronisierung der Motorradliste zu Notion kann über einen Cloudflare Worker im Free-Tarif eingerichtet werden. Notion-Zugangsdaten liegen dabei nicht im öffentlichen App-Code. Die Garage selbst bleibt lokal und eine Änderung in Notion wird nicht zurück in die App übernommen. Die Einrichtung ist in [docs/notion-sync.md](./docs/notion-sync.md) beschrieben.
+
 ## Auf dem Handy installieren
 
 Die App ist als PWA vorbereitet und kann ohne APK installiert werden. Dafür muss die gebaute App unter einer HTTPS-Adresse erreichbar sein.

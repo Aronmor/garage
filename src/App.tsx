@@ -18,6 +18,8 @@ interface BeforeInstallPromptEvent extends Event {
 const statuses: BikeStatus[] = ['Folyamatban', 'Tervezett', 'Kész', 'Áll'];
 const shoppingCategories: ShoppingCategory[] = ['Műhelyanyag', 'Motoralkatrész'];
 const shoppingStatuses: ShoppingStatus[] = ['Beszerzendő', 'Megrendelve', 'Megérkezett'];
+const NOTION_WORKER_URL_KEY = 'muhelygarazs_notion_worker_url';
+const NOTION_SYNC_TOKEN_KEY = 'muhelygarazs_notion_sync_token';
 const specificationFields = [
   { key: 'engineCode', label: 'Motorkód' },
   { key: 'frameNumber', label: 'Alvázszám / vázszám' },
@@ -316,6 +318,24 @@ function App() {
       return '';
     }
   });
+  const [notionWorkerUrl, setNotionWorkerUrl] = useState(() => {
+    try {
+      return localStorage.getItem(NOTION_WORKER_URL_KEY) ?? '';
+    } catch (error) {
+      console.error('A Notion Worker címét nem sikerült beolvasni:', error);
+      return '';
+    }
+  });
+  const [notionSyncToken, setNotionSyncToken] = useState(() => {
+    try {
+      return localStorage.getItem(NOTION_SYNC_TOKEN_KEY) ?? '';
+    } catch (error) {
+      console.error('A Notion szinkronizálási kulcsát nem sikerült beolvasni:', error);
+      return '';
+    }
+  });
+  const [notionSyncing, setNotionSyncing] = useState(false);
+  const [notionSyncMessage, setNotionSyncMessage] = useState<string | null>(null);
   const t = (text: string) => translate(language, text);
   const [photosReady, setPhotosReady] = useState(false);
   const [photoMigrationFailed, setPhotoMigrationFailed] = useState(false);
@@ -367,6 +387,24 @@ function App() {
       setStorageMessage('A megjelenített nevet nem sikerült elmenteni ezen az eszközön.');
     }
   }, [ownerName]);
+
+  useEffect(() => {
+    try {
+      if (notionWorkerUrl.trim()) {
+        localStorage.setItem(NOTION_WORKER_URL_KEY, notionWorkerUrl.trim());
+      } else {
+        localStorage.removeItem(NOTION_WORKER_URL_KEY);
+      }
+      if (notionSyncToken.trim()) {
+        localStorage.setItem(NOTION_SYNC_TOKEN_KEY, notionSyncToken.trim());
+      } else {
+        localStorage.removeItem(NOTION_SYNC_TOKEN_KEY);
+      }
+    } catch (error) {
+      console.error('A Notion szinkronizálási beállításait nem sikerült elmenteni:', error);
+      setStorageMessage('A Notion beállításait nem sikerült ezen az eszközön elmenteni.');
+    }
+  }, [notionWorkerUrl, notionSyncToken]);
 
   useEffect(() => {
     let cancelled = false;
@@ -966,6 +1004,74 @@ function App() {
     }
   }
 
+  async function syncMotorcyclesToNotion() {
+    const workerUrl = notionWorkerUrl.trim();
+    const syncToken = notionSyncToken.trim();
+    if (!workerUrl || !syncToken) {
+      setNotionSyncMessage(language === 'de'
+        ? 'Trage zuerst die Worker-URL und den Synchronisierungsschlüssel ein.'
+        : 'Előbb add meg a Worker címét és a szinkronizálási kulcsot.');
+      return;
+    }
+
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(workerUrl);
+    } catch (error) {
+      console.error('Ungültige Notion-Worker-URL:', error);
+      setNotionSyncMessage(language === 'de'
+        ? 'Die Worker-URL ist ungültig.'
+        : 'A Worker címe érvénytelen.');
+      return;
+    }
+    const isLocalHttp = parsedUrl.protocol === 'http:' &&
+      (parsedUrl.hostname === 'localhost' || parsedUrl.hostname === '127.0.0.1');
+    if (parsedUrl.protocol !== 'https:' && !isLocalHttp) {
+      setNotionSyncMessage(language === 'de'
+        ? 'Die Worker-URL muss HTTPS verwenden.'
+        : 'A Worker címének HTTPS-t kell használnia.');
+      return;
+    }
+
+    setNotionSyncing(true);
+    setNotionSyncMessage(null);
+    try {
+      const endpoint = `${workerUrl.replace(/\/+$/, '').replace(/\/sync$/, '')}/sync`;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${syncToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          bikes: garage.bikes.map(({ id, name, year, status }) => ({ id, name, year, status })),
+        }),
+      });
+      const result: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const message = isRecord(result) && typeof result.error === 'string'
+          ? result.error
+          : `HTTP ${response.status}`;
+        throw new Error(message);
+      }
+      if (!isRecord(result) || typeof result.created !== 'number' || typeof result.updated !== 'number') {
+        throw new Error('A Worker ungültige Synchronisierungsdaten zurückgegeben.');
+      }
+      setNotionSyncMessage(language === 'de'
+        ? `Notion-Synchronisierung erfolgreich: ${result.created} neu, ${result.updated} aktualisiert.`
+        : `Sikeres Notion-szinkronizálás: ${result.created} új, ${result.updated} frissítve.`);
+    } catch (error) {
+      console.error('A motorkerékpárok Notion-szinkronizálása nem sikerült:', error);
+      setNotionSyncMessage(error instanceof Error
+        ? error.message
+        : language === 'de'
+          ? 'Die Notion-Synchronisierung ist fehlgeschlagen.'
+          : 'A Notion-szinkronizálás nem sikerült.');
+    } finally {
+      setNotionSyncing(false);
+    }
+  }
+
   async function installApp() {
     if (!installPrompt) {
       setShowInstallHelp(true);
@@ -1337,6 +1443,42 @@ function App() {
               />
               <small>{t('A név csak ezen az eszközön és ebben a böngészőben tárolódik.')}</small>
             </label>
+            <section className="notion-sync-settings" aria-labelledby="notion-sync-title">
+              <h3 id="notion-sync-title">{t('Notion-szinkronizálás')}</h3>
+              <p>{t('A motorlista egyirányú feltöltése Notionba. A Notionból az appba nem tölt vissza adatot.')}</p>
+              <label htmlFor="notion-worker-url">
+                <span>{t('Cloudflare Worker címe')}</span>
+                <input
+                  id="notion-worker-url"
+                  type="url"
+                  autoComplete="url"
+                  value={notionWorkerUrl}
+                  onChange={(event) => setNotionWorkerUrl(event.target.value)}
+                  placeholder="https://muhelygarazs-notion-sync.…workers.dev"
+                />
+              </label>
+              <label htmlFor="notion-sync-token">
+                <span>{t('Szinkronizálási kulcs')}</span>
+                <input
+                  id="notion-sync-token"
+                  type="password"
+                  autoComplete="off"
+                  value={notionSyncToken}
+                  onChange={(event) => setNotionSyncToken(event.target.value)}
+                  placeholder={t('A Cloudflare Worker titkos kulcsa')}
+                />
+              </label>
+              <small>{t('A kulcs csak ezen a böngészőn tárolódik, és legalább 32 véletlen karakter legyen. A Notion API-kulcs a Workerben marad.')}</small>
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => void syncMotorcyclesToNotion()}
+                disabled={notionSyncing}
+              >
+                {notionSyncing ? t('Szinkronizálás…') : t('Motorkerékpárok szinkronizálása')}
+              </button>
+              {notionSyncMessage && <p className="notion-sync-message" role="status">{notionSyncMessage}</p>}
+            </section>
             <div className="backup-help">
               {!isStandalone && (
                 <div className="backup-install">

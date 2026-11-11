@@ -1,0 +1,11 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "muhelygarazs-notion-sync",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-11",
+  "workers_dev": true,
+  "vars": {
+    "NOTION_VERSION": "2025-09-03",
+    "ALLOWED_ORIGINS": "https://aronmor.github.io,http://127.0.0.1:5175,http://127.0.0.1:5174,http://127.0.0.1:5173"
+  }
+}
