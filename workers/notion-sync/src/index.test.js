@@ -66,7 +66,7 @@ function notionPropertyValues(properties) {
   return output;
 }
 
-function mockNotion(t, { initialPages = [], fileUrl = null } = {}) {
+function mockNotion(t, { initialPages = [], fileUrl = null, directDataSource = false } = {}) {
   const originalFetch = globalThis.fetch;
   const calls = [];
   const pages = [...initialPages];
@@ -84,7 +84,8 @@ function mockNotion(t, { initialPages = [], fileUrl = null } = {}) {
     const body = typeof init.body === 'string' ? JSON.parse(init.body) : null;
     calls.push({ pathname: url.pathname, method, body, headers: new Headers(init.headers) });
 
-    if (url.pathname === '/v1/databases/database-id') {
+    if (url.pathname.startsWith('/v1/databases/')) {
+      if (directDataSource) return Response.json({ message: 'Could not find database' }, { status: 404 });
       return Response.json({ data_sources: [{ id: 'data-source-id' }] });
     }
     if (url.pathname === '/v1/data_sources/data-source-id') {
@@ -194,6 +195,17 @@ function mockNotion(t, { initialPages = [], fileUrl = null } = {}) {
   t.after(() => { globalThis.fetch = originalFetch; });
   return { calls, pages, children, fileContents, get masterPageId() { return masterPageId; } };
 }
+
+test('accepts a Notion data source ID when a database ID is not configured', async (t) => {
+  const mock = mockNotion(t, { directDataSource: true });
+  const response = await worker.fetch(
+    request('/sync', { localGarage: garage(), baseGarage: null }),
+    { ...env, NOTION_DATABASE_ID: 'data-source-id' },
+  );
+  assert.equal(response.status, 200);
+  assert.ok(mock.calls.some((call) => call.pathname === '/v1/databases/data-source-id'));
+  assert.ok(mock.calls.some((call) => call.pathname === '/v1/data_sources/data-source-id'));
+});
 
 function masterPage() {
   return {

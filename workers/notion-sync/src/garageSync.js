@@ -304,15 +304,21 @@ async function writeState(env, pageId, blocks, garage) {
 }
 
 async function ensureDatabase(env) {
-  const database = await notionRequest(`/databases/${encodeURIComponent(env.NOTION_DATABASE_ID)}`, env);
-  const dataSources = database.data_sources ?? [];
-  if (dataSources.length !== 1 || !dataSources[0]?.id) {
-    throw new Error('The Notion motorcycle database must have exactly one accessible data source.');
+  let dataSourceId = env.NOTION_DATABASE_ID;
+  try {
+    const database = await notionRequest(`/databases/${encodeURIComponent(env.NOTION_DATABASE_ID)}`, env);
+    const dataSources = database.data_sources ?? [];
+    if (dataSources.length !== 1 || !dataSources[0]?.id) {
+      throw new Error('The Notion motorcycle database must have exactly one accessible data source.');
+    }
+    dataSourceId = dataSources[0].id;
+  } catch (error) {
+    if (error?.status !== 404) throw error;
   }
-  const dataSource = await notionRequest(`/data_sources/${encodeURIComponent(dataSources[0].id)}`, env);
+  const dataSource = await notionRequest(`/data_sources/${encodeURIComponent(dataSourceId)}`, env);
   const invalid = requiredProperties(dataSource.properties);
   if (invalid.length) throw new Error(`Invalid Notion database properties: ${invalid.join(', ')}.`);
-  return dataSources[0].id;
+  return dataSourceId;
 }
 
 function initializeFromNotion(localGarage, pages) {

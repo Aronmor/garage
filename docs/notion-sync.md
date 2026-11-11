@@ -29,7 +29,7 @@ Die App gleicht die Werkstattdaten auf ausdrücklichen Knopfdruck mit **deinem p
    - `App ID` — Text
    - `Year` — Zahl
    - `Status` — Text
-5. Halte das geheime Integrationstoken und die Datenbank-ID bereit. Füge beides nicht in den Chat oder in Repository-Dateien ein.
+5. Halte das geheime Integrationstoken und die **Datenbank-ID oder Datenquellen-ID** bereit. Füge beides nicht in den Chat oder in Repository-Dateien ein.
 
 Notion-Free begrenzt Datei-Uploads auf **5 MB pro Datei**. Der Sync nimmt höchstens 25 Motorräder und maximal 160 KB strukturierte Garagendaten pro Abgleich an. Größere Quelldokumente können weiterhin mit Gemini verarbeitet, aber nicht mit dem kostenlosen Notion-Tarif synchronisiert werden.
 
@@ -54,7 +54,7 @@ bunx wrangler secret put SYNC_TOKEN
 ```
 
 - `NOTION_TOKEN`: geheimes Token deiner privaten Notion-Verbindung.
-- `NOTION_DATABASE_ID`: ID deiner vorhandenen Motorrad-Datenbank.
+- `NOTION_DATABASE_ID`: ID deiner vorhandenen Motorrad-Datenbank oder ihrer Datenquelle. Der Worker akzeptiert beide ID-Arten.
 - `SYNC_TOKEN`: eigener, zufälliger Schlüssel mit mindestens 32 Zeichen. Er muss sich vom Notion-Token unterscheiden.
 
 Secrets niemals in `wrangler.jsonc`, GitHub, Screenshots oder den Chat eintragen. Der Worker akzeptiert nur den Produktions-Origin `https://aronmor.github.io` sowie die in `wrangler.jsonc` ausdrücklich eingetragenen lokalen Test-Origin-Adressen.
