@@ -165,7 +165,7 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
 .bike-chevron { color: #777b70; font-size: 22px; line-height: 1; }
 .add-bike-link { width: 100%; margin-top: 12px; padding: 11px 4px 2px; border: 0; border-top: 1px solid #2a2d26; background: transparent; color: #c79a5a; text-align: left; cursor: pointer; font-size: 10px; font-weight: 700; }
 .add-bike-link:hover, .text-button:hover { color: var(--amber-light); }
-.bike-details { display: grid; gap: 15px; min-width: 0; }
+.bike-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: 15px; min-width: 0; }
 .bike-hero { position: relative; min-height: 281px; overflow: hidden; padding: 18px 19px 16px; background: radial-gradient(ellipse at 78% 53%, #5b44283d, transparent 39%), linear-gradient(125deg, #1e201a, #191b17 72%); }
 .bike-hero::after { position: absolute; top: -105px; right: -40px; width: 300px; height: 300px; border: 1px solid #c28b4120; border-radius: 50%; box-shadow: 0 0 0 35px #c28b4109, 0 0 0 70px #c28b4105; content: ''; pointer-events: none; }
 .hero-topline { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
