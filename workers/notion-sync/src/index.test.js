@@ -166,6 +166,7 @@ function mockNotion(t, { initialPages = [], fileUrl = null, directDataSource = f
         }
         if (created.type === 'file') {
           const uploadId = created.file.file_upload.id;
+          assert.equal(typeof created.file.name, 'string');
           const url = `https://files.notionusercontent.com/${uploadId}`;
           created.file = {
             caption: created.file.caption.map((part) => ({ plain_text: part.text.content })),
@@ -178,13 +179,13 @@ function mockNotion(t, { initialPages = [], fileUrl = null, directDataSource = f
       });
       return Response.json({ results: result });
     }
-    if (url.pathname.startsWith('/v1/blocks/') && method === 'PATCH') {
+    if (url.pathname.startsWith('/v1/blocks/') && method === 'DELETE') {
       const blockId = url.pathname.split('/').at(-1);
       for (const blocks of children.values()) {
         const block = blocks.find((candidate) => candidate.id === blockId);
-        if (block) block.archived = body.archived;
+        if (block) block.in_trash = true;
       }
-      return Response.json({ id: blockId, archived: body.archived });
+      return Response.json({ id: blockId, in_trash: true });
     }
     if (fileContents.has(url.href)) {
       const bytes = fileContents.get(url.href);
@@ -304,6 +305,7 @@ test('merges independent app edits while Notion wins conflicting edits', async (
   assert.equal(merged.bikes[0].name, 'Notion table name');
   assert.equal(merged.bikes[0].tasks[0].title, 'Notion task');
   assert.equal(merged.shoppingItems[0].name, 'Oil');
+  assert.equal(mock.calls.filter((call) => call.pathname.startsWith('/v1/blocks/block-') && call.method === 'DELETE').length, 1);
 });
 
 test('downloads private Notion file bytes only for an authorized request', async (t) => {
@@ -352,6 +354,8 @@ test('uploads a private file once and associates it with its stable app ID', asy
   const response = await worker.fetch(uploadRequest(), env);
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), { uploaded: true });
+  assert.equal(mock.calls.find((call) => call.pathname.includes('/children') && call.method === 'PATCH')
+    .body.children[0].file.name, 'műhely kézikönyv.pdf');
   assert.deepEqual([...mock.children.get('master-page')[0].file.caption.map((part) => part.plain_text)], [
     'MGFILEv1|document-1|bike-1|document|m%C5%B1hely%20k%C3%A9zik%C3%B6nyv.pdf',
   ]);

@@ -285,6 +285,7 @@ async function writeState(env, pageId, blocks, garage) {
         file: {
           type: 'file_upload',
           file_upload: { id: upload.id },
+          name: `muhelygarazs-state-${generation}.txt`,
           caption,
         },
       }],
@@ -295,10 +296,7 @@ async function writeState(env, pageId, blocks, garage) {
   if (!equal(verified, garage)) throw new Error('The new Notion garage snapshot could not be verified; the previous copy was preserved.');
   for (const block of blocks) {
     if (stateBlockText(block)) {
-      await notionRequest(`/blocks/${encodeURIComponent(block.id)}`, env, {
-        method: 'PATCH',
-        body: JSON.stringify({ archived: true }),
-      });
+      await notionRequest(`/blocks/${encodeURIComponent(block.id)}`, env, { method: 'DELETE' });
     }
   }
 }
@@ -555,6 +553,7 @@ async function handleFileUpload(request, env, origin) {
       [blockType]: {
         type: 'file_upload',
         file_upload: { id: upload.id },
+        ...(kind === 'document' ? { name: filename } : {}),
         caption,
       },
     };
