@@ -1,35 +1,41 @@
-# Notion-Synchronisierung (kostenloser Einweg-Test)
+# Private Notion-Hauptablage
 
-Die App kann die Motorradliste auf Knopfdruck in eine Notion-Datenbank übertragen. Die Synchronisierung ist bewusst **einseitig**: Änderungen in Notion werden nicht in die App zurückgeladen, und nicht mehr vorhandene Motorräder werden in Notion nicht gelöscht.
+Die App gleicht die Werkstattdaten auf ausdrücklichen Knopfdruck mit **deinem privaten Notion-Workspace** ab. Notion ist die führende Ablage; der kostenlose Cloudflare Worker vermittelt zwischen der öffentlichen GitHub-Pages-App und Notion. Der Sync läuft nicht automatisch im Hintergrund.
 
-## Kosten und Datenfluss
+## Was gespeichert wird
 
-- GitHub Pages bleibt die öffentliche, statische App.
-- Der Cloudflare Worker läuft im Workers-Free-Tarif. Laut [Cloudflare-Preisdokumentation](https://developers.cloudflare.com/workers/platform/pricing/) umfasst dieser 100.000 Worker-Aufrufe pro Tag; ein manueller Sync nutzt nur wenige Aufrufe. Nicht auf Workers Paid upgraden.
-- Der Worker benötigt weder Datenbank noch Dateispeicher. Notion ist das Ziel für die Motorraddaten.
-- Cloudflare Access wird dafür nicht benötigt. Eine Abfrage nach Zahlungsdaten beim Konto-Setup kann nicht ausgeschlossen werden; bestätige keinen kostenpflichtigen Tarif.
-- Pro Motorrad überträgt die App nur ihre lokale ID, Name, Baujahr und Projektstatus. Dokumente, Fotos, Aufgaben, Rahmennummern und Gemini-Schlüssel werden nicht übertragen.
-- Das Notion-API-Token bleibt als Cloudflare-Worker-Secret serverseitig. Ein eigener zufälliger Synchronisierungsschlüssel schützt den Worker zusätzlich; die App speichert ihn nur lokal im Browser. Sende keinen dieser Schlüssel im Chat oder committe sie nicht ins Repository.
-- Worker-Adresse und Synchronisierungsschlüssel werden nicht in das JSON-Garage-Backup aufgenommen.
-- Die Garage bleibt weiterhin lokal pro Gerät und Browser. Die Notion-Synchronisierung startet nur, wenn du in den Einstellungen auf den Button drückst.
+- Motorrad-Stammdaten und -Eigenschaften, Aufgaben, Planungszeiträume, Einkaufsliste, Werkstatttemperatur, Timer, Chemikalien und KI-Anleitungen werden als privater JSON-Snapshot in Notion gespeichert.
+- Die Motorräder werden zusätzlich als Zeilen in deiner vorhandenen Notion-Motorraddatenbank gespiegelt. Dort kannst du Name, Baujahr und Status direkt bearbeiten; diese Felder werden beim nächsten Sync zurück in die App gelesen.
+- Fotos und gespeicherte Originaldokumente werden als private Notion-Dateianhänge gesichert und beim Synchronisieren auf ein anderes Gerät zurückgeladen.
+- Ein zusätzlicher `MűhelyGarázs — privát synchronizálási adatok`-Eintrag mit dem App-internen Kennzeichen `__muhelygarazs_master_state_v1__` enthält den vollständigen Snapshot und die Dateianhänge. Nicht manuell löschen oder umbenennen.
+- Original-PDF-, TXT- und Markdown-Dateien bleiben nur dann erhalten, wenn du den aus dem Dokument erzeugten KI-Leitfaden speicherst. Die App speichert weder Gemini-API-Schlüssel noch ungespeicherte Dokumente.
 
-## 1. Notion-Datenbank vorbereiten
+## Datenschutz und Konflikte
 
-1. Erstelle in Notion eine interne Integration für deinen eigenen Workspace und kopiere das geheime Integrationstoken.
-2. Gib der Integration Zugriff auf Inhalte: Lesen, Einfügen und Aktualisieren.
-3. Erstelle eine Datenbank mit genau einem Datenquellensatz und diesen Eigenschaften:
+- Andere Besucher der öffentlichen App sehen deine lokalen Daten, Notion-Datenbank-ID und Synchronisierungseinstellungen nicht. Der Sync startet ausschließlich durch deinen Klick.
+- Die Notion-Integration ist nur mit deiner Motorrad-Datenbank zu teilen. Das Integrationstoken bleibt ein Cloudflare-Worker-Secret und wird weder in GitHub noch in der App gespeichert.
+- Die Worker-URL und der persönliche Sync-Schlüssel werden lokal im jeweiligen Browser gespeichert. Teile den Schlüssel nicht.
+- Die Synchronisierung überträgt die Motorrad- und Werkstattdaten sowie Fotos/Dokumente von diesem Gerät zu Cloudflare und Notion. Dokumente, die du mit Gemini analysieren lässt, werden außerdem direkt an Google Gemini gesendet; dafür gilt dessen Datenverarbeitung.
+- Der Worker gleicht Änderungen anhand des beim letzten erfolgreichen Sync lokal gespeicherten Vergleichsstands ab: unabhängige Änderungen werden zusammengeführt. Wenn derselbe Eintrag auf beiden Seiten geändert wurde, gewinnt Notion. Ein frisches Gerät ohne Vergleichsstand übernimmt Notion.
+- Löschen eines Motorrads wird in Notion durch Archivieren der entsprechenden Motorradzeile übernommen. Notion erlaubt der Integration nicht, bereits hochgeladene Dateiinhalte endgültig zu löschen; nicht mehr verwendete Dateianhänge können deshalb in Notion als verwaiste Anhänge verbleiben.
+
+## Notion kostenlos vorbereiten
+
+1. Öffne [Notion Developer connections](https://www.notion.so/developers/connections) und erstelle eine interne Verbindung für deinen Workspace.
+2. Gib der Verbindung Lese-, Einfüge- und Aktualisierungsrechte für Inhalte.
+3. Teile **deine vorhandene Motorrad-Datenbank** mit dieser Verbindung. Veröffentliche weder die Datenbank noch ihre Seiten im Web.
+4. Die Datenbank braucht eine Datenquelle mit genau diesen Eigenschaften und Typen:
    - `Name` — Titel
    - `App ID` — Text
    - `Year` — Zahl
    - `Status` — Text
-4. Teile die Datenbank mit der Integration über **… → Verbindungen hinzufügen**.
-5. Kopiere die Datenbank-ID aus der Notion-Datenbank-URL. Die App ermittelt daraus über die Notion API den Datenquellensatz.
+5. Halte das geheime Integrationstoken und die Datenbank-ID bereit. Füge beides nicht in den Chat oder in Repository-Dateien ein.
 
-Die Eigenschaften müssen exakt so heißen und den angegebenen Typ haben, damit vorhandene Motorradseiten anhand der stabilen `App ID` aktualisiert statt dupliziert werden.
+Notion-Free begrenzt Datei-Uploads auf **5 MB pro Datei**. Der Sync nimmt höchstens 25 Motorräder und maximal 160 KB strukturierte Garagendaten pro Abgleich an. Größere Quelldokumente können weiterhin mit Gemini verarbeitet, aber nicht mit dem kostenlosen Notion-Tarif synchronisiert werden.
 
-## 2. Kostenlosen Worker bereitstellen
+## Kostenlosen Cloudflare Worker bereitstellen
 
-Installiere nichts global. Öffne PowerShell und führe aus:
+Öffne PowerShell:
 
 ```powershell
 cd C:\Users\fispa\Downloads\muhely-garazs-app\workers\notion-sync
@@ -37,7 +43,9 @@ bunx wrangler login
 bunx wrangler deploy
 ```
 
-Melde dich bei Cloudflare an und bleibe beim kostenlosen Workers-Tarif. Nach dem Deploy speichere die drei Werte über die interaktiven Eingabeaufforderungen als Worker-Secrets:
+Melde dich bei Cloudflare an und bleibe bei **Workers Free**. Nicht auf Paid upgraden. Wrangler gibt danach die Worker-Adresse aus.
+
+Setze die drei Werte interaktiv als Secrets (Wrangler fragt die Werte im Terminal ab):
 
 ```powershell
 bunx wrangler secret put NOTION_TOKEN
@@ -45,28 +53,30 @@ bunx wrangler secret put NOTION_DATABASE_ID
 bunx wrangler secret put SYNC_TOKEN
 ```
 
-- `NOTION_TOKEN`: das geheime Integrationstoken aus Schritt 1.
-- `NOTION_DATABASE_ID`: die Datenbank-ID aus ihrer Notion-URL.
-- `SYNC_TOKEN`: ein neuer, zufälliger und nur für diesen Worker verwendeter Schlüssel (empfohlen: mindestens 32 zufällige Zeichen). Verwende nicht das Notion-Token erneut.
+- `NOTION_TOKEN`: geheimes Token deiner privaten Notion-Verbindung.
+- `NOTION_DATABASE_ID`: ID deiner vorhandenen Motorrad-Datenbank.
+- `SYNC_TOKEN`: eigener, zufälliger Schlüssel mit mindestens 32 Zeichen. Er muss sich vom Notion-Token unterscheiden.
 
-Wrangler zeigt nach dem Deploy eine Worker-Adresse wie `https://muhelygarazs-notion-sync.<konto>.workers.dev` an. Die Worker-Konfiguration erlaubt Produktionszugriffe von `https://aronmor.github.io`; die localhost-Adressen sind nur für lokale Tests.
+Secrets niemals in `wrangler.jsonc`, GitHub, Screenshots oder den Chat eintragen. Der Worker akzeptiert nur den Produktions-Origin `https://aronmor.github.io` sowie die in `wrangler.jsonc` ausdrücklich eingetragenen lokalen Test-Origin-Adressen.
 
-## 3. App verbinden
+Cloudflare Workers Free umfasst laut [Cloudflare-Preisdokumentation](https://developers.cloudflare.com/workers/platform/pricing/) ein kostenloses Anfragekontingent. Cloudflare kann beim Konto-Setup eine Zahlungsdatenabfrage anzeigen; bestätige keinen kostenpflichtigen Tarif.
 
-Öffne in der App **Menü → Einstellungen und Datensicherung → Notion-Synchronisierung**:
+## App verbinden und synchronisieren
+
+In der App öffne **Menü → Einstellungen und Datensicherung → Notion-Synchronisierung**:
 
 1. Trage die Worker-Adresse ein.
-2. Trage denselben `SYNC_TOKEN` ein, den du für den Worker gesetzt hast.
-3. Wähle **Motorräder synchronisieren**.
+2. Trage denselben `SYNC_TOKEN` ein.
+3. Wähle **Garázs szinkronizálása**.
 
-Bei Erfolg zeigt die App, wie viele Zeilen neu angelegt und aktualisiert wurden. Wiederholte Synchronisierungen aktualisieren dieselben Notion-Seiten anhand der `App ID`.
+Wiederhole den Schritt auf jedem Gerät. Auf einem neuen Gerät ohne gespeicherten Vergleichsstand wird der aktuelle Notion-Stand geladen. Mache vor dem ersten Sync mit wertvollen Daten zusätzlich eine App-Sicherungsdatei.
 
-## Fehlerbehebung und Grenzen
+## Fehlerbehebung
 
-- **401 / Invalid sync token:** Der Schlüssel in der App stimmt nicht mit `SYNC_TOKEN` im Worker überein.
-- **403 / Origin is not allowed:** Verwende die veröffentlichte App oder prüfe `ALLOWED_ORIGINS` in der Worker-Konfiguration und deploye erneut.
-- **Notion 401/403/404:** Prüfe das Integrationstoken, die exakte Datenbank-ID, die Datenbankfreigabe und die Integrationsrechte.
-- **Ungültige Eigenschaften:** Prüfe die Namen und Typen `Name`, `App ID`, `Year` und `Status`.
-- **Duplikat für eine App ID:** Lösche in Notion die doppelte Seite mit dieser ID; der Worker bricht absichtlich ab, statt willkürlich eine Seite auszuwählen.
-- Der Test synchronisiert nur Motorräder, höchstens 25 pro Anfrage. Es gibt keine automatische Hintergrund-Synchronisierung, keine Konfliktauflösung und keine Löschung in Notion.
-- Die [Notion-API hat eigene Ratenlimits](https://developers.notion.com/reference/request-limits). Bei größeren Workspaces kann ein weiterer manueller Versuch nach einer kurzen Wartezeit nötig sein.
+- **401 / Invalid sync token:** App-Schlüssel und `SYNC_TOKEN` stimmen nicht überein.
+- **403 / Origin is not allowed:** Die aufgerufene Domain ist nicht in `ALLOWED_ORIGINS` freigegeben.
+- **Invalid Notion database properties:** Spaltennamen/-typen prüfen und sicherstellen, dass die Integration Zugriff auf die Datenquelle hat.
+- **Notion 401/403/404:** Token, Datenbank-ID, Verbindungsrechte und Datenbankfreigabe prüfen.
+- **Datei größer als 5 MB:** Für Notion Free verkleinern; kein Paid-Upgrade nötig, um andere Daten zu synchronisieren.
+- **Fehlender Dateianhang:** Die Datei wurde möglicherweise in Notion entfernt oder ein früherer Upload wurde unterbrochen. Stelle sie aus einer Sicherung wieder her und synchronisiere erneut.
+- Der Worker protokolliert nur technische Fehler. Repository, Notion-Datenbank-ID und persönliche Motorradwerte gehören nicht in öffentliche Logs oder GitHub-Dateien.

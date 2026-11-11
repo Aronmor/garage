@@ -1,4 +1,4 @@
-export type BikeStatus = 'Folyamatban' | 'Tervezett' | 'Kész' | 'Áll';
+export type BikeStatus = 'Folyamatban' | 'Tervezett' | 'Kész' | 'Áll' | (string & {});
 export type Season = 'Tavasz' | 'Nyár' | 'Ősz' | 'Tél' | 'Bármikor';
 export type ShoppingCategory = 'Műhelyanyag' | 'Motoralkatrész';
 export type ShoppingStatus = 'Beszerzendő' | 'Megrendelve' | 'Megérkezett';
@@ -82,6 +82,17 @@ export interface BikePhoto {
   createdAt: string;
 }
 
+export interface BikeDocument {
+  id: string;
+  bikeId: string;
+  guideId: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  createdAt: string;
+  dataUrl?: string;
+}
+
 export interface Bike {
   id: string;
   name: string;
@@ -103,6 +114,7 @@ export interface Bike {
 
 export interface GarageData {
   bikes: Bike[];
+  documents: BikeDocument[];
   activeBikeId: string;
   shoppingItems: ShoppingItem[];
   planningPeriods: string[];

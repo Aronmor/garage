@@ -2,9 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import AiGuideStudio, { toTasks } from './AiGuideStudio';
 import WorkshopTools from './WorkshopTools';
 import { DEFAULT_PLANNING_PERIODS, initialGarage, LEGACY_STORAGE_KEY, STORAGE_KEY } from './data';
-import { deleteBikePhoto, getBikePhoto, makeStoredPhoto, replaceAllBikePhotos, saveBikePhoto } from './photoStorage';
+import { deleteBikeDocument, deleteBikePhoto, getBikeDocument, getBikePhoto, makeStoredPhoto, replaceAllBikeFiles, saveBikeDocument, saveBikePhoto } from './photoStorage';
 import { LanguageContext, Localized, translate, useTranslation, type Language } from './i18n';
-import type { AiGuide, Bike, BikePhoto, BikeSpecification, BikeStatus, BikeTask, GarageData, ShoppingCategory, ShoppingItem, ShoppingStatus, WorkshopChemical, WorkshopTimer } from './types';
+import type { AiGuide, Bike, BikeDocument, BikePhoto, BikeSpecification, BikeStatus, BikeTask, GarageData, ShoppingCategory, ShoppingItem, ShoppingStatus, WorkshopChemical, WorkshopTimer } from './types';
 
 type View = 'garage' | 'bike' | 'tasks' | 'plan' | 'shopping' | 'tools' | 'guides';
 type TaskFilter = 'open' | 'all';
@@ -20,6 +20,7 @@ const shoppingCategories: ShoppingCategory[] = ['Műhelyanyag', 'Motoralkatrész
 const shoppingStatuses: ShoppingStatus[] = ['Beszerzendő', 'Megrendelve', 'Megérkezett'];
 const NOTION_WORKER_URL_KEY = 'muhelygarazs_notion_worker_url';
 const NOTION_SYNC_TOKEN_KEY = 'muhelygarazs_notion_sync_token';
+const NOTION_SYNC_BASELINE_KEY = 'muhelygarazs_notion_sync_baseline';
 const specificationFields = [
   { key: 'engineCode', label: 'Motorkód' },
   { key: 'frameNumber', label: 'Alvázszám / vázszám' },
@@ -30,6 +31,15 @@ const specificationFields = [
   { key: 'fuel', label: 'Üzemanyag / keverék' },
   { key: 'ignition', label: 'Gyújtás' },
 ] as const;
+
+function sourceMimeType(file: File) {
+  if (file.type) return file.type;
+  const extension = file.name.split('.').at(-1)?.toLowerCase();
+  if (extension === 'pdf') return 'application/pdf';
+  if (extension === 'txt') return 'text/plain';
+  if (extension === 'md') return 'text/markdown';
+  return 'application/octet-stream';
+}
 
 type SpecificationKey = (typeof specificationFields)[number]['key'];
 
@@ -64,7 +74,7 @@ async function compressPhoto(file: File): Promise<Blob> {
 }
 
 function photoDataUrlToBlob(dataUrl: string): Blob {
-  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(dataUrl);
+  const match = /^data:([a-zA-Z0-9.+/-]+);base64,(.+)$/.exec(dataUrl);
   if (!match) throw new Error('A biztonsági mentés egyik fotója hibás vagy nem támogatott formátumú.');
   const binary = atob(match[2]);
   const bytes = new Uint8Array(binary.length);
@@ -90,11 +100,24 @@ function withoutPhotoData(garage: GarageData): GarageData {
       ...bike,
       photos: (bike.photos ?? []).map(({ dataUrl: _dataUrl, ...photo }) => photo),
     })),
+    documents: garage.documents.map(({ dataUrl: _dataUrl, ...document }) => document),
   };
 }
 
+function isBikeDocument(value: unknown): value is BikeDocument {
+  return isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.bikeId === 'string' &&
+    typeof value.guideId === 'string' &&
+    typeof value.name === 'string' &&
+    typeof value.mimeType === 'string' &&
+    typeof value.size === 'number' &&
+    typeof value.createdAt === 'string' &&
+    (value.dataUrl === undefined || (typeof value.dataUrl === 'string' && value.dataUrl.startsWith('data:')));
+}
+
 function isBikeStatus(value: unknown): value is BikeStatus {
-  return typeof value === 'string' && statuses.some((status) => status === value);
+  return typeof value === 'string' && value.trim().length > 0 && value.length <= 50;
 }
 
 function isBikeTask(value: unknown): value is BikeTask {
@@ -228,6 +251,7 @@ function isGarageData(value: unknown): value is GarageData {
   return (
     Array.isArray(garage.bikes) &&
     garage.bikes.every(isBike) &&
+    (garage.documents === undefined || (Array.isArray(garage.documents) && garage.documents.every(isBikeDocument))) &&
     typeof garage.activeBikeId === 'string' &&
     (garage.shoppingItems === undefined ||
       (Array.isArray(garage.shoppingItems) && garage.shoppingItems.every(isShoppingItem))) &&
@@ -277,6 +301,7 @@ function loadGarage(): { data: GarageData; warning: string | null } {
       }),
     }));
     data.shoppingItems ??= [];
+    data.documents ??= [];
     data.shoppingItems = data.shoppingItems.map((item) => {
       const { bought, ...rest } = item;
       return { ...rest, status: item.status ?? (bought ? 'Megérkezett' : 'Beszerzendő') };
@@ -415,19 +440,25 @@ function App() {
             .filter((photo): photo is BikePhoto & { dataUrl: string } => Boolean(photo.dataUrl))
             .map((photo) => ({ bikeId: bike.id, photo })),
         );
+        const oldDocuments = garage.documents.filter(
+          (document): document is BikeDocument & { dataUrl: string } => Boolean(document.dataUrl),
+        );
         for (const { bikeId, photo } of oldPhotos) {
           await saveBikePhoto(bikeId, photo.id, photoDataUrlToBlob(photo.dataUrl));
         }
+        for (const document of oldDocuments) {
+          await saveBikeDocument(document.bikeId, document.id, photoDataUrlToBlob(document.dataUrl));
+        }
         if (cancelled) return;
-        if (oldPhotos.length) {
+        if (oldPhotos.length || oldDocuments.length) {
           setGarage((current) => withoutPhotoData(current));
-          setStorageMessage('A korábban mentett fotók átkerültek a helyi képtárba.');
+          setStorageMessage('A korábban mentett fájlok átkerültek a helyi képtárba.');
         }
         setPhotosReady(true);
       } catch (error) {
-        console.error('A korábbi fotókat nem sikerült biztonságosan átköltöztetni:', error);
+        console.error('A korábbi fájlokat nem sikerült biztonságosan átköltöztetni:', error);
         if (!cancelled) {
-          setStorageMessage('A korábbi fotók átköltöztetése nem sikerült. A régi mentés megmaradt; ellenőrizd a böngésző tárhelyét, majd töltsd újra az alkalmazást.');
+          setStorageMessage('A korábbi fájlok átköltöztetése nem sikerült. A régi mentés megmaradt; ellenőrizd a böngésző tárhelyét, majd töltsd újra az alkalmazást.');
           setPhotoMigrationFailed(true);
           setPhotosReady(true);
         }
@@ -843,14 +874,35 @@ function App() {
     }));
   }
 
-  function saveGuide(guide: AiGuide, addTasks: boolean, chemicals: WorkshopChemical[]) {
+  async function saveGuide(guide: AiGuide, addTasks: boolean, chemicals: WorkshopChemical[], sourceFile: File | null) {
     if (!activeBike) return;
+    let document: BikeDocument | null = null;
+    if (sourceFile) {
+      try {
+        if (sourceFile.size > 15 * 1024 * 1024) throw new Error('Das Quelldokument ist größer als 15 MB und kann nicht gespeichert werden.');
+        document = {
+          id: createId(),
+          bikeId: activeBike.id,
+          guideId: guide.id,
+          name: sourceFile.name,
+          mimeType: sourceMimeType(sourceFile),
+          size: sourceFile.size,
+          createdAt: new Date().toISOString(),
+        };
+        await saveBikeDocument(activeBike.id, document.id, sourceFile);
+      } catch (error) {
+        console.error('Das Herstellerdokument konnte nicht lokal gespeichert werden:', error);
+        setStorageMessage(error instanceof Error ? error.message : 'Das Quelldokument konnte nicht gespeichert werden.');
+        throw error;
+      }
+    }
     const tasks = addTasks ? toTasks(guide) : [];
     setGarage((current) => {
       const existingNames = new Set(current.workshopChemicals.map((chemical) => chemical.name.toLocaleLowerCase()));
       const newChemicals = chemicals.filter((chemical) => !existingNames.has(chemical.name.toLocaleLowerCase()));
       return {
         ...current,
+        documents: document ? [document, ...current.documents] : current.documents,
         workshopChemicals: [...newChemicals, ...current.workshopChemicals],
         bikes: current.bikes.map((bike) => bike.id === activeBike.id ? {
           ...bike,
@@ -905,6 +957,24 @@ function App() {
     }));
   }
 
+  async function downloadBikeDocument(bikeDocument: BikeDocument) {
+    try {
+      const blob = await getBikeDocument(bikeDocument.bikeId, bikeDocument.id);
+      if (!blob) throw new Error('Das Quelldokument ist auf diesem Gerät nicht vorhanden. Synchronisiere zuerst mit Notion.');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = bikeDocument.name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (error) {
+      console.error('Das Herstellerdokument konnte nicht geöffnet werden:', error);
+      setStorageMessage(error instanceof Error ? error.message : 'Das Dokument konnte nicht geöffnet werden.');
+    }
+  }
+
   async function exportBackup() {
     try {
       if (!photosReady) throw new Error('A fotótár előkészítése még folyamatban van. Próbáld újra néhány másodperc múlva.');
@@ -919,6 +989,11 @@ function App() {
             return { ...photo, dataUrl: await blobToDataUrl(blob) };
           })),
         }))),
+        documents: await Promise.all(garage.documents.map(async (document) => {
+          const blob = await getBikeDocument(document.bikeId, document.id);
+          if (!blob) throw new Error(`Das Dokument „${document.name}“ fehlt im lokalen Dateispeicher.`);
+          return { ...document, dataUrl: await blobToDataUrl(blob) };
+        })),
       };
       const backup = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(backup);
@@ -957,9 +1032,18 @@ function App() {
           return makeStoredPhoto(bike.id, photo.id, photoDataUrlToBlob(photo.dataUrl));
         }),
       );
-      await replaceAllBikePhotos(photoRecords);
+      const documentRecords = (parsed.documents ?? []).map((document) => {
+        if (!document.dataUrl) throw new Error(`Das Dokument „${document.name}“ fehlt in der Sicherungsdatei.`);
+        return {
+          bikeId: document.bikeId,
+          documentId: document.id,
+          blob: photoDataUrlToBlob(document.dataUrl),
+        };
+      });
+      await replaceAllBikeFiles(photoRecords, documentRecords);
       const restored: GarageData = {
         ...parsed,
+        documents: (parsed.documents ?? []).map(({ dataUrl: _dataUrl, ...document }) => document),
         bikes: parsed.bikes.map((bike) => ({
           ...bike,
           guides: bike.guides ?? [],
@@ -1004,7 +1088,7 @@ function App() {
     }
   }
 
-  async function syncMotorcyclesToNotion() {
+  async function syncGarageToNotion() {
     const workerUrl = notionWorkerUrl.trim();
     const syncToken = notionSyncToken.trim();
     if (!workerUrl || !syncToken) {
@@ -1037,15 +1121,20 @@ function App() {
     setNotionSyncMessage(null);
     try {
       const endpoint = `${workerUrl.replace(/\/+$/, '').replace(/\/sync$/, '')}/sync`;
+      let baseGarage: GarageData | null = null;
+      const savedBaseline = localStorage.getItem(NOTION_SYNC_BASELINE_KEY);
+      if (savedBaseline) {
+        const parsedBaseline: unknown = JSON.parse(savedBaseline);
+        if (!isGarageData(parsedBaseline)) throw new Error('Der lokale Notion-Synchronisierungsstand ist beschädigt. Bitte importiere zuerst eine Sicherung.');
+        baseGarage = parsedBaseline;
+      }
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${syncToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          bikes: garage.bikes.map(({ id, name, year, status }) => ({ id, name, year, status })),
-        }),
+        body: JSON.stringify({ baseGarage, localGarage: withoutPhotoData(garage) }),
       });
       const result: unknown = await response.json().catch(() => null);
       if (!response.ok) {
@@ -1054,14 +1143,88 @@ function App() {
           : `HTTP ${response.status}`;
         throw new Error(message);
       }
-      if (!isRecord(result) || typeof result.created !== 'number' || typeof result.updated !== 'number') {
-        throw new Error('A Worker ungültige Synchronisierungsdaten zurückgegeben.');
+      if (!isRecord(result) || !isGarageData(result.garage) || !Array.isArray(result.files) ||
+          !result.files.every((file) => isRecord(file) &&
+            typeof file.id === 'string' &&
+            typeof file.bikeId === 'string' &&
+            typeof file.kind === 'string' &&
+            typeof file.name === 'string')) {
+        throw new Error('Der Worker hat ungültige Notion-Synchronisierungsdaten zurückgegeben.');
       }
+      const syncedGarage = result.garage;
+      const remoteFiles = new Map(result.files.map((file) => [file.id, file]));
+      const localPhotoIds = new Set(garage.bikes.flatMap((bike) => (bike.photos ?? []).map((photo) => photo.id)));
+      const localDocumentIds = new Set(garage.documents.map((document) => document.id));
+      const filesToUpload = [
+        ...syncedGarage.bikes.flatMap((bike) =>
+          (bike.photos ?? [])
+            .filter((photo) => !remoteFiles.has(photo.id) && localPhotoIds.has(photo.id))
+            .map((photo) => ({ id: photo.id, bikeId: bike.id, name: `${photo.id}.jpg`, kind: 'photo' as const, photo })),
+        ),
+        ...syncedGarage.documents
+          .filter((document) => !remoteFiles.has(document.id) && localDocumentIds.has(document.id))
+          .map((document) => ({ id: document.id, bikeId: document.bikeId, name: document.name, kind: 'document' as const, document })),
+      ];
+      for (const file of filesToUpload) {
+        const blob = 'photo' in file
+          ? await getBikePhoto(file.bikeId, file.photo.id)
+          : await getBikeDocument(file.bikeId, file.document.id);
+        if (!blob) throw new Error(`Die Datei „${file.name}“ fehlt lokal und in Notion. Bitte stelle sie aus einer Sicherung wieder her.`);
+        if (blob.size > 5 * 1024 * 1024) throw new Error(`„${file.name}“ ist größer als 5 MB. Der kostenlose Notion-Tarif akzeptiert diese Datei nicht.`);
+        const upload = await fetch(`${endpoint.replace(/\/sync$/, '')}/files`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${syncToken}`,
+            'Content-Type': 'photo' in file ? (blob.type || 'image/jpeg') : file.document.mimeType,
+            'X-Garage-File-Id': encodeURIComponent(file.id),
+            'X-Garage-Bike-Id': encodeURIComponent(file.bikeId),
+            'X-Garage-File-Name': encodeURIComponent(file.name),
+            'X-Garage-File-Kind': file.kind,
+          },
+          body: blob,
+        });
+        const uploadResult: unknown = await upload.json().catch(() => null);
+        if (!upload.ok) {
+          const message = isRecord(uploadResult) && typeof uploadResult.error === 'string'
+            ? uploadResult.error
+            : `HTTP ${upload.status}`;
+          throw new Error(`Die Datei „${file.name}“ konnte nicht nach Notion übertragen werden: ${message}`);
+        }
+        remoteFiles.set(file.id, { id: file.id });
+      }
+
+      const syncedPhotoIds = new Set(syncedGarage.bikes.flatMap((bike) => (bike.photos ?? []).map((photo) => photo.id)));
+      const syncedDocumentIds = new Set(syncedGarage.documents.map((document) => document.id));
+      for (const bike of syncedGarage.bikes) {
+        for (const photo of bike.photos ?? []) {
+          if (!syncedPhotoIds.has(photo.id)) continue;
+          if (await getBikePhoto(bike.id, photo.id)) continue;
+          if (!remoteFiles.has(photo.id)) throw new Error(`Das Notion-Foto „${photo.id}“ fehlt. Bitte lade es in Notion erneut hoch oder stelle eine Sicherung wieder her.`);
+          const downloaded = await fetch(`${endpoint.replace(/\/sync$/, '')}/files/${encodeURIComponent(photo.id)}`, {
+            headers: { Authorization: `Bearer ${syncToken}` },
+          });
+          if (!downloaded.ok) throw new Error(`Das Foto „${photo.id}“ konnte nicht aus Notion geladen werden (HTTP ${downloaded.status}).`);
+          await saveBikePhoto(bike.id, photo.id, await downloaded.blob());
+        }
+      }
+      for (const bikeDocument of syncedGarage.documents) {
+        if (!syncedDocumentIds.has(bikeDocument.id)) continue;
+        if (await getBikeDocument(bikeDocument.bikeId, bikeDocument.id)) continue;
+        if (!remoteFiles.has(bikeDocument.id)) throw new Error(`Das Notion-Dokument „${bikeDocument.name}“ fehlt. Bitte lade es in Notion erneut hoch oder stelle eine Sicherung wieder her.`);
+        const downloaded = await fetch(`${endpoint.replace(/\/sync$/, '')}/files/${encodeURIComponent(bikeDocument.id)}`, {
+          headers: { Authorization: `Bearer ${syncToken}` },
+        });
+        if (!downloaded.ok) throw new Error(`Das Dokument „${bikeDocument.name}“ konnte nicht aus Notion geladen werden (HTTP ${downloaded.status}).`);
+        await saveBikeDocument(bikeDocument.bikeId, bikeDocument.id, await downloaded.blob());
+      }
+
+      setGarage(syncedGarage);
+      localStorage.setItem(NOTION_SYNC_BASELINE_KEY, JSON.stringify(withoutPhotoData(syncedGarage)));
       setNotionSyncMessage(language === 'de'
-        ? `Notion-Synchronisierung erfolgreich: ${result.created} neu, ${result.updated} aktualisiert.`
-        : `Sikeres Notion-szinkronizálás: ${result.created} új, ${result.updated} frissítve.`);
+        ? `Notion-Synchronisierung abgeschlossen: ${syncedGarage.bikes.length} Motorräder, ${syncedGarage.documents.length} Dokumente und ${syncedPhotoIds.size + syncedDocumentIds.size} Dateien.`
+        : `Notion-szinkronizálás kész: ${syncedGarage.bikes.length} motor, ${syncedGarage.documents.length} dokumentum és ${syncedPhotoIds.size + syncedDocumentIds.size} fájl.`);
     } catch (error) {
-      console.error('A motorkerékpárok Notion-szinkronizálása nem sikerült:', error);
+      console.error('Die vollständige Notion-Garagensynchronisierung ist fehlgeschlagen:', error);
       setNotionSyncMessage(error instanceof Error
         ? error.message
         : language === 'de'
@@ -1231,7 +1394,9 @@ function App() {
               bikeName={`${activeBike.name} (${activeBike.year})`}
               language={language}
               guides={activeBike.guides}
+              documents={garage.documents.filter((document) => document.bikeId === activeBike.id)}
               onSaveGuide={saveGuide}
+              onDownloadDocument={(document) => void downloadBikeDocument(document)}
               onTogglePoint={toggleGuidePoint}
               onDeleteGuide={deleteGuide}
             />
@@ -1445,7 +1610,7 @@ function App() {
             </label>
             <section className="notion-sync-settings" aria-labelledby="notion-sync-title">
               <h3 id="notion-sync-title">{t('Notion-szinkronizálás')}</h3>
-              <p>{t('A motorlista egyirányú feltöltése Notionba. A Notionból az appba nem tölt vissza adatot.')}</p>
+              <p>{t('Kézi kétirányú szinkronizálás a Notion fő adattárával. A motorok, feladatok, listák, műhelyadatok, útmutatók, fotók és forrásdokumentumok is szinkronizálódnak. Ütközés esetén a Notion az irányadó.')}</p>
               <label htmlFor="notion-worker-url">
                 <span>{t('Cloudflare Worker címe')}</span>
                 <input
@@ -1472,10 +1637,10 @@ function App() {
               <button
                 className="button button-secondary"
                 type="button"
-                onClick={() => void syncMotorcyclesToNotion()}
+                onClick={() => void syncGarageToNotion()}
                 disabled={notionSyncing}
               >
-                {notionSyncing ? t('Szinkronizálás…') : t('Motorkerékpárok szinkronizálása')}
+                {notionSyncing ? t('Szinkronizálás…') : t('Garázs szinkronizálása')}
               </button>
               {notionSyncMessage && <p className="notion-sync-message" role="status">{notionSyncMessage}</p>}
             </section>
@@ -1612,7 +1777,7 @@ function BikeDetails({
               const status = statuses.find((candidate) => candidate === event.target.value);
               if (status) onStatusChange(status);
             }}>
-              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+              {[...new Set([...statuses, bike.status])].map((status) => <option key={status} value={status}>{status}</option>)}
             </select>
           </div>
         </div>

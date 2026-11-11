@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import type { AiGuide, BikeTask, GuidePoint, GuideStep, WorkshopChemical } from './types';
+import type { AiGuide, BikeDocument, BikeTask, GuidePoint, GuideStep, WorkshopChemical } from './types';
 import { Localized, type Language } from './i18n';
 
 const MODEL = 'gemini-3.8-flash';
@@ -49,7 +49,9 @@ interface AiGuideStudioProps {
   bikeName: string;
   language: Language;
   guides: AiGuide[];
-  onSaveGuide: (guide: AiGuide, addTasks: boolean, chemicals: WorkshopChemical[]) => void;
+  documents: BikeDocument[];
+  onSaveGuide: (guide: AiGuide, addTasks: boolean, chemicals: WorkshopChemical[], sourceFile: File | null) => Promise<void>;
+  onDownloadDocument: (document: BikeDocument) => void;
   onTogglePoint: (guideId: string, stepId: string, pointId: string) => void;
   onDeleteGuide: (guideId: string) => void;
 }
@@ -347,7 +349,9 @@ export default function AiGuideStudio({
   bikeName,
   language,
   guides,
+  documents,
   onSaveGuide,
+  onDownloadDocument,
   onTogglePoint,
   onDeleteGuide,
 }: AiGuideStudioProps) {
@@ -364,6 +368,7 @@ export default function AiGuideStudio({
   const [deleteTarget, setDeleteTarget] = useState<AiGuide | null>(null);
 
   const selectedGuide = draft ?? guides.find((guide) => guide.id === selectedGuideId) ?? null;
+  const selectedSourceDocument = documents.find((document) => document.guideId === selectedGuide?.id);
 
   function chooseFile(nextFile: File | null) {
     setFile(nextFile);
@@ -427,10 +432,17 @@ export default function AiGuideStudio({
     }
   }
 
-  function save(addTasks: boolean) {
+  async function save(addTasks: boolean) {
     if (!selectedGuide) return;
     const guide = selectedGuide;
-    onSaveGuide(guide, addTasks, draftChemicals.filter((chemical) => selectedChemicalIds.includes(chemical.id)));
+    try {
+      await onSaveGuide(guide, addTasks, draftChemicals.filter((chemical) => selectedChemicalIds.includes(chemical.id)), draft ? file : null);
+    } catch (cause) {
+      setError(cause instanceof Error
+        ? cause.message
+        : 'A mentés nem sikerült. Ellenőrizd a tárhelyet, majd próbáld újra.');
+      return;
+    }
     setDraft(null);
     setDraftChemicals([]);
     setSelectedChemicalIds([]);
@@ -455,7 +467,7 @@ export default function AiGuideStudio({
 
         <div className="privacy-card">
           <strong>Fontos: külső AI-feldolgozás</strong>
-          <p>A kiválasztott dokumentum, fájlnév, a motortípus és a megadott kérés elküldésre kerül a Google Gemini API-nak. Az útmutató mentésre kerül ezen az eszközön; az eredeti fájl és az API-kulcs nem kerül az alkalmazás mentésébe. A Google saját API-adatkezelési feltételei érvényesek.</p>
+          <p>A kiválasztott dokumentum, fájlnév, a motortípus és a megadott kérés elküldésre kerül a Google Gemini API-nak. Mentéskor az útmutató és az eredeti dokumentum ezen az eszközön marad; a következő manuális Notion-szinkronizálás mindkettőt átviszi a saját privát adatbázisodba. A Google saját API-adatkezelési feltételei érvényesek.</p>
           <p>Az API-kulcsot ebben a böngészőben adod meg, és a rendszer közvetlenül a Google Gemini API-nak küldi. Nem kerül a forráskódba vagy a garázs mentésébe; a böngésző fejlesztői eszközeiben azonban látható lehet. Nyilvános webhelyen csak saját, korlátozott kulcsot használj.</p>
           <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Gemini API-kulcs létrehozása a Google AI Studióban ↗</a>
         </div>
@@ -482,7 +494,7 @@ export default function AiGuideStudio({
             onChange={(event) => chooseFile(event.target.files?.[0] ?? null)}
             disabled={loading}
           />
-          <p className="guide-field-hint">PDF, TXT vagy Markdown · legfeljebb 15 MB. A fájlt nem mentjük el az alkalmazásban.</p>
+          <p className="guide-field-hint">PDF, TXT vagy Markdown · legfeljebb 15 MB. Mentéskor az eredeti fájl az útmutatóhoz kerül; a Notion Free fájllimitje 5 MB fájlonként.</p>
           {file && <div className="selected-file">✓ {file.name} <span>({Math.max(1, Math.round(file.size / 1024))} KB)</span><button type="button" onClick={() => chooseFile(null)} aria-label="Fájl eltávolítása">×</button></div>}
 
           <label className="guide-field-label" htmlFor="guide-hint">Mire figyeljen az AI? <span>opcionális</span></label>
@@ -523,6 +535,11 @@ export default function AiGuideStudio({
             <span>Forrás: {selectedGuide.sourceFile}</span>
             <span>{guideProgress(selectedGuide).done}/{guideProgress(selectedGuide).total} pont kész</span>
           </div>
+          {!draft && selectedSourceDocument && (
+            <button className="button button-secondary" type="button" onClick={() => onDownloadDocument(selectedSourceDocument)}>
+              Eredeti dokumentum letöltése
+            </button>
+          )}
           <div className="guide-progress-track"><span style={{ width: `${guideProgress(selectedGuide).percent}%` }} /></div>
 
           {draft && draftChemicals.length > 0 && (
@@ -587,7 +604,7 @@ export default function AiGuideStudio({
               <button className="button button-primary" type="button" onClick={() => save(true)}>Mentés + nyitott pontok Teendőkbe</button>
             </div>
           ) : (
-            <p className="guide-saved-note">Az útmutató és az ellenőrzőpontok helyben mentve. A forrásfájlt és az API-kulcsot nem tároljuk.</p>
+            <p className="guide-saved-note">Az útmutató és az ellenőrzőpontok helyben mentve. A forrásfájl az eredeti dokumentumként is megmarad ezen az eszközön.</p>
           )}
         </section>
       )}

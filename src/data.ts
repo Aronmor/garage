@@ -4,6 +4,7 @@ export const DEFAULT_PLANNING_PERIODS: Season[] = ['Tavasz', 'Nyár', 'Ősz', 'T
 
 export const initialGarage: GarageData = {
   activeBikeId: 'jawa-350-634',
+  documents: [],
   shoppingItems: [],
   planningPeriods: DEFAULT_PLANNING_PERIODS,
   workshopTempC: 18,
