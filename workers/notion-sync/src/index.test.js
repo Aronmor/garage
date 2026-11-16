@@ -307,6 +307,26 @@ test('normalizes legacy garage bikes and Notion rows with empty status', async (
   assert.equal(secondResult.garage.bikes.some((bike) => bike.id === 'bike-2'), true);
 });
 
+test('imports older Notion rows without a year as planned motorcycles', async (t) => {
+  const legacyBike = {
+    id: 'legacy-bike-page',
+    properties: {
+      Name: { type: 'title', title: [{ plain_text: 'Simson S51' }] },
+      'App ID': { type: 'rich_text', rich_text: [] },
+      Year: { type: 'number', number: null },
+      Status: { type: 'rich_text', rich_text: [] },
+    },
+  };
+  const mock = mockNotion(t, { initialPages: [legacyBike] });
+  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  assert.equal(response.status, 200);
+  const result = await response.json();
+  const imported = result.garage.bikes.find((bike) => bike.name === 'Simson S51');
+  assert.equal(imported.year, 1900);
+  assert.equal(imported.status, 'Tervezett');
+  assert.equal(mock.pages.some((page) => page.id === 'legacy-bike-page'), true);
+});
+
 test('merges independent app edits while Notion wins conflicting edits', async (t) => {
   const mock = mockNotion(t, { initialPages: [masterPage()] });
   const original = garage();

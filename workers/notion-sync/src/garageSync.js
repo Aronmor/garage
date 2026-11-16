@@ -195,12 +195,12 @@ function pageBike(page) {
   const name = propertyValue(properties.Name);
   const year = propertyValue(properties.Year);
   const status = propertyValue(properties.Status);
-  if (id === MASTER_APP_ID || !name || !Number.isInteger(year)) return null;
+  if (id === MASTER_APP_ID || !name) return null;
   return {
     id: id || page.id,
     pageId: page.id,
     name,
-    year,
+    year: Number.isInteger(year) ? year : 1900,
     status: typeof status === 'string' && status.trim() ? status : 'Tervezett',
   };
 }

@@ -29,6 +29,7 @@ Die App gleicht die Werkstattdaten auf ausdrücklichen Knopfdruck mit **deinem p
    - `App ID` — Text
    - `Year` — Zahl
    - `Status` — Text
+   Bereits vorhandene Zeilen ohne Jahr oder Status werden beim Import als `1900` bzw. `Tervezett` übernommen und können danach in der App oder in Notion ergänzt werden.
 5. Halte das geheime Integrationstoken und die **Datenbank-ID oder Datenquellen-ID** bereit. Füge beides nicht in den Chat oder in Repository-Dateien ein.
 
 Notion-Free begrenzt Datei-Uploads auf **5 MB pro Datei**. Der Sync nimmt höchstens 25 Motorräder und maximal 160 KB strukturierte Garagendaten pro Abgleich an. Größere Quelldokumente können weiterhin mit Gemini verarbeitet, aber nicht mit dem kostenlosen Notion-Tarif synchronisiert werden.
