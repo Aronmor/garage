@@ -284,7 +284,8 @@ function checklistSectionFor(block) {
   const textParts = block?.[block?.type]?.rich_text ?? block?.paragraph?.rich_text;
   if (!['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) return null;
   const text = richTextContent(textParts).toLocaleLowerCase();
-  if (/(aufgabe|task|feladat|teendő|teendo|ütemterv|utemterv|vinni\s+kell|projekt|szerviz|javít|javit)/.test(text)) return 'tasks';
+  if (/(planung|planning|ütemterv|utemterv|vinni\s+kell|projekt|szerviz|javít|javit)/.test(text)) return 'planning';
+  if (/(aufgabe|task|feladat|teendő|teendo)/.test(text)) return 'tasks';
   if (/(einkauf|shopping|bevásárl|bevasarl|beszer|alkatrész|alkatresz)/.test(text)) return 'shopping';
   return null;
 }
@@ -298,9 +299,9 @@ function checklistItem(block) {
 function parseChecklistBlocks(pageId, blocks) {
   const result = {
     pageId,
-    headings: { tasks: null, shopping: null },
-    targets: { tasks: null, shopping: null },
-    blocks: { tasks: [], shopping: [] },
+    headings: { tasks: null, planning: null, shopping: null },
+    targets: { tasks: null, planning: null, shopping: null },
+    blocks: { tasks: [], planning: [], shopping: [] },
   };
   let section = null;
   const unsectionedItems = [];
@@ -318,10 +319,10 @@ function parseChecklistBlocks(pageId, blocks) {
     if (section) result.blocks[section].push(item);
     else unsectionedItems.push(item);
   }
-  if (!result.headings.tasks && !result.headings.shopping && unsectionedItems.length) {
+  if (!result.headings.tasks && !result.headings.planning && !result.headings.shopping && unsectionedItems.length) {
     result.blocks.tasks = unsectionedItems;
   }
-  return result.headings.tasks || result.headings.shopping || unsectionedItems.length ? result : null;
+  return result.headings.tasks || result.headings.planning || result.headings.shopping || unsectionedItems.length ? result : null;
 }
 
 const checklistContainerTypes = new Set([
@@ -358,12 +359,12 @@ async function readBikeChecklists(env, pages) {
     if (!containers.length) continue;
     const result = {
       pageId: page.id,
-      headings: { tasks: null, shopping: null },
-      targets: { tasks: null, shopping: null },
-      blocks: { tasks: [], shopping: [] },
+      headings: { tasks: null, planning: null, shopping: null },
+      targets: { tasks: null, planning: null, shopping: null },
+      blocks: { tasks: [], planning: [], shopping: [] },
     };
     for (const container of containers) {
-      for (const section of ['tasks', 'shopping']) {
+      for (const section of ['tasks', 'planning', 'shopping']) {
         if (container.targets[section] && !result.targets[section]) {
           result.targets[section] = container.targets[section];
           result.headings[section] = container.headings[section];
@@ -371,7 +372,7 @@ async function readBikeChecklists(env, pages) {
         result.blocks[section].push(...container.blocks[section]);
       }
     }
-    if (result.blocks.tasks.length || result.blocks.shopping.length) checklists.set(bike.id, result);
+    if (result.blocks.tasks.length || result.blocks.planning.length || result.blocks.shopping.length) checklists.set(bike.id, result);
   }
   return checklists;
 }
@@ -396,17 +397,27 @@ function applyNotionChecklists(garage, checklists) {
   const bikes = garage.bikes.map((bike) => {
     const checklist = checklists.get(bike.id);
     if (!checklist) return bike;
-    const taskBlockShoppingIds = new Set(checklist.blocks.tasks.map((item) => `notion-shopping-${item.id}`));
+    const taskBlockShoppingIds = new Set(
+      [...checklist.blocks.tasks, ...checklist.blocks.planning].map((item) => `notion-shopping-${item.id}`),
+    );
     shoppingItems = shoppingItems.filter((item) => !taskBlockShoppingIds.has(item.id));
     const tasks = [...bike.tasks];
-    for (const item of checklist.blocks.tasks) {
+    for (const section of ['tasks', 'planning']) {
+      for (const item of checklist.blocks[section]) {
       const existing = tasks.find((task) => normalizedChecklistText(task.title) === normalizedChecklistText(item.text));
       if (existing) {
         existing.title = item.text;
         existing.done = item.checked;
+        existing.category = section === 'planning' ? 'Planung' : 'Aufgabe';
       } else {
-        tasks.push({ id: `notion-task-${item.id}`, title: item.text, category: 'Notion', done: item.checked });
+        tasks.push({
+          id: `notion-task-${item.id}`,
+          title: item.text,
+          category: section === 'planning' ? 'Planung' : 'Aufgabe',
+          done: item.checked,
+        });
       }
+    }
     }
     for (const item of checklist.blocks.shopping) {
       const parsed = parsedShoppingText(item.text);
@@ -449,16 +460,27 @@ async function syncBikeChecklists(env, garage, checklists) {
   for (const bike of garage.bikes) {
     const checklist = checklists.get(bike.id);
     if (!checklist) continue;
-    const tasksByTitle = new Map(bike.tasks.map((task) => [normalizedChecklistText(task.title), task]));
+    const tasksBySection = {
+      tasks: new Map(
+        bike.tasks
+          .filter((task) => task.category !== 'Planung')
+          .map((task) => [normalizedChecklistText(task.title), task]),
+      ),
+      planning: new Map(
+        bike.tasks
+          .filter((task) => task.category === 'Planung')
+          .map((task) => [normalizedChecklistText(task.title), task]),
+      ),
+    };
     const shoppingByName = new Map(
       garage.shoppingItems
         .filter((item) => item.bikeId === bike.id)
         .map((item) => [normalizedChecklistText(item.name), item]),
     );
     const missing = [
-      ...[...tasksByTitle.entries()]
-        .filter(([title]) => !checklist.blocks.tasks.some((block) => normalizedChecklistText(block.text) === title))
-        .map(([, task]) => ({ section: 'tasks', text: task.title, checked: task.done })),
+      ...['tasks', 'planning'].flatMap((section) => [...tasksBySection[section].entries()]
+        .filter(([title]) => !checklist.blocks[section].some((block) => normalizedChecklistText(block.text) === title))
+        .map(([, task]) => ({ section, text: task.title, checked: task.done }))),
       ...[...shoppingByName.entries()]
         .filter(([name]) => !checklist.blocks.shopping.some((block) => normalizedChecklistText(parsedShoppingText(block.text).name) === name))
         .map(([, item]) => ({ section: 'shopping', text: shoppingText(item), checked: item.status === 'Megérkezett' })),
