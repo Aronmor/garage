@@ -121,11 +121,29 @@ function normalizeGarage(value) {
       engineNumber: bike.engineNumber ?? '',
       specifications: bike.specifications ?? [],
       photos: bike.photos ?? [],
-      tasks: bike.tasks ?? [],
+      tasks: Array.isArray(bike.tasks)
+        ? bike.tasks.map((task, index) => normalizeTask(task, bike.id, index)).filter(Boolean)
+        : [],
       guides: bike.guides ?? [],
     })),
     documents: value.documents ?? [],
   };
+}
+
+function normalizeTask(value, bikeId, index) {
+  if (!value || typeof value !== 'object') return null;
+  const task = value;
+  const normalized = {
+    ...task,
+    id: typeof task.id === 'string' && task.id ? task.id : `legacy-task-${bikeId}-${index}`,
+    title: typeof task.title === 'string' ? task.title : '',
+    category: typeof task.category === 'string' ? task.category : 'Notion',
+    done: typeof task.done === 'boolean' ? task.done : false,
+  };
+  for (const key of ['period', 'season', 'guideId', 'guidePointId']) {
+    if (normalized[key] !== undefined && typeof normalized[key] !== 'string') delete normalized[key];
+  }
+  return normalized;
 }
 
 function canonicalJson(value) {

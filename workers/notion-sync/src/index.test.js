@@ -357,6 +357,7 @@ test('normalizes legacy garage bikes and Notion rows with empty status', async (
   delete savedState.bikes[0].frameNumber;
   delete savedState.bikes[0].engineNumber;
   savedState.bikes[0].status = '';
+  savedState.bikes[0].tasks[0] = { id: 'legacy-task', title: 'Legacy task' };
   mock.fileContents.set(stateUrl, new TextEncoder().encode(JSON.stringify(savedState)));
 
   const second = await worker.fetch(request('/sync', {
@@ -368,6 +369,12 @@ test('normalizes legacy garage bikes and Notion rows with empty status', async (
   assert.equal(secondResult.garage.bikes[0].frameNumber, '');
   assert.equal(secondResult.garage.bikes[0].engineNumber, '');
   assert.equal(secondResult.garage.bikes[0].status, 'Folyamatban');
+  assert.deepEqual(secondResult.garage.bikes[0].tasks[0], {
+    id: 'legacy-task',
+    title: 'Legacy task',
+    category: 'Notion',
+    done: false,
+  });
   assert.equal(secondResult.garage.bikes.some((bike) => bike.id === 'bike-2'), true);
 });
 
