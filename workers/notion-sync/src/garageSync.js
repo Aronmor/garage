@@ -281,10 +281,11 @@ function richTextContent(parts) {
 }
 
 function checklistSectionFor(block) {
-  if (!['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) return null;
-  const text = richTextContent(block[block.type]?.rich_text).toLocaleLowerCase();
-  if (/(aufgabe|task|feladat)/.test(text)) return 'tasks';
-  if (/(einkauf|shopping|bevásárl|beszer)/.test(text)) return 'shopping';
+  const textParts = block?.[block?.type]?.rich_text ?? block?.paragraph?.rich_text;
+  if (!['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) return null;
+  const text = richTextContent(textParts).toLocaleLowerCase();
+  if (/(aufgabe|task|feladat|teendő|teendo)/.test(text)) return 'tasks';
+  if (/(einkauf|shopping|bevásárl|bevasarl|beszer|alkatrész|alkatresz)/.test(text)) return 'shopping';
   return null;
 }
 
@@ -302,9 +303,10 @@ function parseChecklistBlocks(pageId, blocks) {
   };
   let section = null;
   for (const block of blocks) {
-    if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) {
+    if (['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) {
       section = checklistSectionFor(block);
       if (section) result.headings[section] = block.id;
+      else if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) section = null;
       continue;
     }
     const item = checklistItem(block);

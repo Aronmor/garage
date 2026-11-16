@@ -350,8 +350,8 @@ test('syncs checklists from a child page below the motorcycle page', async (t) =
       'bike-details-page': [
         {
           id: 'nested-heading',
-          type: 'heading_2',
-          heading_2: { rich_text: [{ plain_text: 'Aufgaben' }] },
+          type: 'paragraph',
+          paragraph: { rich_text: [{ plain_text: 'Feladatok' }] },
         },
         {
           id: 'nested-task',
