@@ -324,14 +324,24 @@ function parseChecklistBlocks(pageId, blocks) {
   return result.headings.tasks || result.headings.shopping || unsectionedItems.length ? result : null;
 }
 
+const checklistContainerTypes = new Set([
+  'child_page',
+  'column_list',
+  'column',
+  'toggle',
+  'callout',
+  'synced_block',
+]);
+
 async function findChecklistContainers(env, pageId, blocks, depth = 0, visited = new Set()) {
-  if (depth > 4 || visited.has(pageId)) return [];
+  if (depth > 3 || visited.has(pageId)) return [];
   visited.add(pageId);
   const results = [];
   const directResult = parseChecklistBlocks(pageId, blocks);
   if (directResult) results.push(directResult);
   for (const block of blocks) {
     if (!block?.has_children && block?.type !== 'child_page') continue;
+    if (!checklistContainerTypes.has(block.type)) continue;
     const childBlocks = await listChildren(env, block.id);
     results.push(...await findChecklistContainers(env, block.id, childBlocks, depth + 1, visited));
   }
