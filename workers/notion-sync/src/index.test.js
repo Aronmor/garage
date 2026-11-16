@@ -325,7 +325,6 @@ test('syncs motorcycle page checklists into tasks and shopping items', async (t)
   assert.ok(payload.garage.shoppingItems.some((item) =>
     item.name === 'Ölfilter' && item.quantity === '1 Stück' && item.bikeId === 'bike-1',
   ));
-  assert.ok(mock.calls.some((call) => call.pathname === '/v1/blocks/todo-oil' && call.method === 'PATCH'));
   assert.ok(mock.calls.some((call) =>
     call.pathname === '/v1/blocks/bike-page-1/children' &&
     call.method === 'PATCH' &&

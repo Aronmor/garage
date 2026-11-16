@@ -453,21 +453,6 @@ async function syncBikeChecklists(env, garage, checklists) {
         .filter((item) => item.bikeId === bike.id)
         .map((item) => [normalizedChecklistText(item.name), item]),
     );
-    for (const section of ['tasks', 'shopping']) {
-      for (const block of checklist.blocks[section]) {
-        const parsed = section === 'shopping' ? parsedShoppingText(block.text) : null;
-        const value = section === 'tasks'
-          ? tasksByTitle.get(normalizedChecklistText(block.text))
-          : shoppingByName.get(normalizedChecklistText(parsed.name));
-        if (!value) continue;
-        const text = section === 'tasks' ? value.title : shoppingText(value);
-        const checked = section === 'tasks' ? value.done : value.status === 'Megérkezett';
-        await notionRequest(`/blocks/${encodeURIComponent(block.id)}`, env, {
-          method: 'PATCH',
-          body: JSON.stringify({ type: 'to_do', to_do: checklistBlockPayload(text, checked).to_do }),
-        });
-      }
-    }
     const missing = [
       ...[...tasksByTitle.entries()]
         .filter(([title]) => !checklist.blocks.tasks.some((block) => normalizedChecklistText(block.text) === title))
@@ -476,13 +461,20 @@ async function syncBikeChecklists(env, garage, checklists) {
         .filter(([name]) => !checklist.blocks.shopping.some((block) => normalizedChecklistText(parsedShoppingText(block.text).name) === name))
         .map(([, item]) => ({ section: 'shopping', text: shoppingText(item), checked: item.status === 'Megérkezett' })),
     ];
+    const missingByTarget = new Map();
     for (const item of missing) {
       const target = checklist.targets[item.section];
       if (!target) continue;
+      const key = `${target.pageId}:${target.headingId}`;
+      const group = missingByTarget.get(key) ?? { target, items: [] };
+      group.items.push(item);
+      missingByTarget.set(key, group);
+    }
+    for (const { target, items } of missingByTarget.values()) {
       await notionRequest(`/blocks/${encodeURIComponent(target.pageId)}/children`, env, {
         method: 'PATCH',
         body: JSON.stringify({
-          children: [checklistBlockPayload(item.text, item.checked)],
+          children: items.map((item) => checklistBlockPayload(item.text, item.checked)),
           position: { type: 'after_block', after_block: { id: target.headingId } },
         }),
       });
