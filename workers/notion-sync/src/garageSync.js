@@ -284,7 +284,7 @@ function checklistSectionFor(block) {
   const textParts = block?.[block?.type]?.rich_text ?? block?.paragraph?.rich_text;
   if (!['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) return null;
   const text = richTextContent(textParts).toLocaleLowerCase();
-  if (/(aufgabe|task|feladat|teendő|teendo)/.test(text)) return 'tasks';
+  if (/(aufgabe|task|feladat|teendő|teendo|ütemterv|utemterv|vinni\s+kell|projekt|szerviz|javít|javit)/.test(text)) return 'tasks';
   if (/(einkauf|shopping|bevásárl|bevasarl|beszer|alkatrész|alkatresz)/.test(text)) return 'shopping';
   return null;
 }

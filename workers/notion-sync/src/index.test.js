@@ -393,6 +393,7 @@ test('aggregates checklist blocks from multiple page columns', async (t) => {
         { id: 'shopping-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Gyertya' }], checked: false } },
       ],
       'tasks-column': [
+        { id: 'tasks-heading', type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Ütemterv' }] } },
         { id: 'task-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Motor szétszedése' }], checked: false } },
       ],
     },
