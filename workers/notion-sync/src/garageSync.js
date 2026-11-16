@@ -299,6 +299,7 @@ function parseChecklistBlocks(pageId, blocks) {
   const result = {
     pageId,
     headings: { tasks: null, shopping: null },
+    targets: { tasks: null, shopping: null },
     blocks: { tasks: [], shopping: [] },
   };
   let section = null;
@@ -306,8 +307,10 @@ function parseChecklistBlocks(pageId, blocks) {
   for (const block of blocks) {
     if (['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) {
       section = checklistSectionFor(block);
-      if (section) result.headings[section] = block.id;
-      else if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) section = null;
+      if (section) {
+        result.headings[section] = block.id;
+        result.targets[section] = { pageId, headingId: block.id };
+      }
       continue;
     }
     const item = checklistItem(block);
@@ -321,18 +324,18 @@ function parseChecklistBlocks(pageId, blocks) {
   return result.headings.tasks || result.headings.shopping || unsectionedItems.length ? result : null;
 }
 
-async function findChecklistContainer(env, pageId, blocks, depth = 0, visited = new Set()) {
-  if (depth > 4 || visited.has(pageId)) return null;
+async function findChecklistContainers(env, pageId, blocks, depth = 0, visited = new Set()) {
+  if (depth > 4 || visited.has(pageId)) return [];
   visited.add(pageId);
+  const results = [];
   const directResult = parseChecklistBlocks(pageId, blocks);
-  if (directResult) return directResult;
+  if (directResult) results.push(directResult);
   for (const block of blocks) {
     if (!block?.has_children && block?.type !== 'child_page') continue;
     const childBlocks = await listChildren(env, block.id);
-    const result = await findChecklistContainer(env, block.id, childBlocks, depth + 1, visited);
-    if (result) return result;
+    results.push(...await findChecklistContainers(env, block.id, childBlocks, depth + 1, visited));
   }
-  return null;
+  return results;
 }
 
 async function readBikeChecklists(env, pages) {
@@ -341,8 +344,24 @@ async function readBikeChecklists(env, pages) {
     const bike = pageBike(page);
     if (!bike) continue;
     const directBlocks = await listChildren(env, page.id);
-    const result = await findChecklistContainer(env, page.id, directBlocks);
-    if (result) checklists.set(bike.id, result);
+    const containers = await findChecklistContainers(env, page.id, directBlocks);
+    if (!containers.length) continue;
+    const result = {
+      pageId: page.id,
+      headings: { tasks: null, shopping: null },
+      targets: { tasks: null, shopping: null },
+      blocks: { tasks: [], shopping: [] },
+    };
+    for (const container of containers) {
+      for (const section of ['tasks', 'shopping']) {
+        if (container.targets[section] && !result.targets[section]) {
+          result.targets[section] = container.targets[section];
+          result.headings[section] = container.headings[section];
+        }
+        result.blocks[section].push(...container.blocks[section]);
+      }
+    }
+    if (result.blocks.tasks.length || result.blocks.shopping.length) checklists.set(bike.id, result);
   }
   return checklists;
 }
@@ -448,13 +467,13 @@ async function syncBikeChecklists(env, garage, checklists) {
         .map(([, item]) => ({ section: 'shopping', text: shoppingText(item), checked: item.status === 'Megérkezett' })),
     ];
     for (const item of missing) {
-      const headingId = checklist.headings[item.section];
-      if (!headingId) continue;
-      await notionRequest(`/blocks/${encodeURIComponent(checklist.pageId)}/children`, env, {
+      const target = checklist.targets[item.section];
+      if (!target) continue;
+      await notionRequest(`/blocks/${encodeURIComponent(target.pageId)}/children`, env, {
         method: 'PATCH',
         body: JSON.stringify({
           children: [checklistBlockPayload(item.text, item.checked)],
-          position: { type: 'after_block', after_block: { id: headingId } },
+          position: { type: 'after_block', after_block: { id: target.headingId } },
         }),
       });
     }

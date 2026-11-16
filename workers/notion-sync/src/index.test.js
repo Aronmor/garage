@@ -370,6 +370,42 @@ test('syncs checklists from a child page below the motorcycle page', async (t) =
   ));
 });
 
+test('aggregates checklist blocks from multiple page columns', async (t) => {
+  const bikePage = {
+    id: 'bike-page-1',
+    properties: {
+      Name: { type: 'title', title: [{ plain_text: 'Jawa 350' }] },
+      'App ID': { type: 'rich_text', rich_text: [{ plain_text: 'bike-1' }] },
+      Year: { type: 'number', number: 1982 },
+      Status: { type: 'rich_text', rich_text: [{ plain_text: 'Folyamatban' }] },
+    },
+  };
+  const mock = mockNotion(t, {
+    initialPages: [bikePage],
+    initialChildren: {
+      'bike-page-1': [{ id: 'details-page', type: 'child_page', child_page: { title: 'Details' } }],
+      'details-page': [{ id: 'columns', type: 'column_list', has_children: true }],
+      columns: [
+        { id: 'shopping-column', type: 'column', has_children: true },
+        { id: 'tasks-column', type: 'column', has_children: true },
+      ],
+      'shopping-column': [
+        { id: 'shopping-heading', type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Bevásárló lista' }] } },
+        { id: 'shopping-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Gyertya' }], checked: false } },
+      ],
+      'tasks-column': [
+        { id: 'task-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Motor szétszedése' }], checked: false } },
+      ],
+    },
+  });
+  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Motor szétszedése'));
+  assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Gyertya' && item.bikeId === 'bike-1'));
+  assert.equal(mock.calls.some((call) => call.pathname === '/v1/blocks/tasks-column/children'), true);
+});
+
 test('normalizes legacy garage bikes and Notion rows with empty status', async (t) => {
   const notionBike = {
     id: 'notion-bike-page',
