@@ -294,31 +294,47 @@ function checklistItem(block) {
   return text ? { id: block.id, text, checked: block.to_do?.checked === true } : null;
 }
 
+function parseChecklistBlocks(pageId, blocks) {
+  const result = {
+    pageId,
+    headings: { tasks: null, shopping: null },
+    blocks: { tasks: [], shopping: [] },
+  };
+  let section = null;
+  for (const block of blocks) {
+    if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) {
+      section = checklistSectionFor(block);
+      if (section) result.headings[section] = block.id;
+      continue;
+    }
+    const item = checklistItem(block);
+    if (section && item) result.blocks[section].push(item);
+  }
+  return result.headings.tasks || result.headings.shopping ? result : null;
+}
+
+async function findChecklistContainer(env, pageId, blocks, depth = 0, visited = new Set()) {
+  if (depth > 4 || visited.has(pageId)) return null;
+  visited.add(pageId);
+  const directResult = parseChecklistBlocks(pageId, blocks);
+  if (directResult) return directResult;
+  for (const block of blocks) {
+    if (!block?.has_children && block?.type !== 'child_page') continue;
+    const childBlocks = await listChildren(env, block.id);
+    const result = await findChecklistContainer(env, block.id, childBlocks, depth + 1, visited);
+    if (result) return result;
+  }
+  return null;
+}
+
 async function readBikeChecklists(env, pages) {
   const checklists = new Map();
   for (const page of pages) {
     const bike = pageBike(page);
     if (!bike) continue;
     const directBlocks = await listChildren(env, page.id);
-    const childPage = directBlocks.find((block) => block?.type === 'child_page');
-    const targetPageId = childPage?.id ?? page.id;
-    const blocks = childPage ? await listChildren(env, targetPageId) : directBlocks;
-    const result = {
-      pageId: targetPageId,
-      headings: { tasks: null, shopping: null },
-      blocks: { tasks: [], shopping: [] },
-    };
-    let section = null;
-    for (const block of blocks) {
-      if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) {
-        section = checklistSectionFor(block);
-        if (section) result.headings[section] = block.id;
-        continue;
-      }
-      const item = checklistItem(block);
-      if (section && item) result.blocks[section].push(item);
-    }
-    if (result.headings.tasks || result.headings.shopping) checklists.set(bike.id, result);
+    const result = await findChecklistContainer(env, page.id, directBlocks);
+    if (result) checklists.set(bike.id, result);
   }
   return checklists;
 }
