@@ -333,6 +333,43 @@ test('syncs motorcycle page checklists into tasks and shopping items', async (t)
   ));
 });
 
+test('syncs checklists from a child page below the motorcycle page', async (t) => {
+  const bikePage = {
+    id: 'bike-page-1',
+    properties: {
+      Name: { type: 'title', title: [{ plain_text: 'Jawa 350' }] },
+      'App ID': { type: 'rich_text', rich_text: [{ plain_text: 'bike-1' }] },
+      Year: { type: 'number', number: 1982 },
+      Status: { type: 'rich_text', rich_text: [{ plain_text: 'Folyamatban' }] },
+    },
+  };
+  const mock = mockNotion(t, {
+    initialPages: [bikePage],
+    initialChildren: {
+      'bike-page-1': [{ id: 'bike-details-page', type: 'child_page', child_page: { title: 'Werkstattdaten' } }],
+      'bike-details-page': [
+        {
+          id: 'nested-heading',
+          type: 'heading_2',
+          heading_2: { rich_text: [{ plain_text: 'Aufgaben' }] },
+        },
+        {
+          id: 'nested-task',
+          type: 'to_do',
+          to_do: { rich_text: [{ plain_text: 'Ventilspiel prüfen' }], checked: false },
+        },
+      ],
+    },
+  });
+  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Ventilspiel prüfen'));
+  assert.ok(mock.calls.some((call) =>
+    call.pathname === '/v1/blocks/bike-details-page/children' && call.method === 'PATCH',
+  ));
+});
+
 test('normalizes legacy garage bikes and Notion rows with empty status', async (t) => {
   const notionBike = {
     id: 'notion-bike-page',

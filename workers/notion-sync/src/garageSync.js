@@ -299,13 +299,17 @@ async function readBikeChecklists(env, pages) {
   for (const page of pages) {
     const bike = pageBike(page);
     if (!bike) continue;
+    const directBlocks = await listChildren(env, page.id);
+    const childPage = directBlocks.find((block) => block?.type === 'child_page');
+    const targetPageId = childPage?.id ?? page.id;
+    const blocks = childPage ? await listChildren(env, targetPageId) : directBlocks;
     const result = {
-      pageId: page.id,
+      pageId: targetPageId,
       headings: { tasks: null, shopping: null },
       blocks: { tasks: [], shopping: [] },
     };
     let section = null;
-    for (const block of await listChildren(env, page.id)) {
+    for (const block of blocks) {
       if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) {
         section = checklistSectionFor(block);
         if (section) result.headings[section] = block.id;
