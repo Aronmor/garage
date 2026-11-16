@@ -302,6 +302,7 @@ function parseChecklistBlocks(pageId, blocks) {
     blocks: { tasks: [], shopping: [] },
   };
   let section = null;
+  const unsectionedItems = [];
   for (const block of blocks) {
     if (['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) {
       section = checklistSectionFor(block);
@@ -310,9 +311,14 @@ function parseChecklistBlocks(pageId, blocks) {
       continue;
     }
     const item = checklistItem(block);
-    if (section && item) result.blocks[section].push(item);
+    if (!item) continue;
+    if (section) result.blocks[section].push(item);
+    else unsectionedItems.push(item);
   }
-  return result.headings.tasks || result.headings.shopping ? result : null;
+  if (!result.headings.tasks && !result.headings.shopping && unsectionedItems.length) {
+    result.blocks.tasks = unsectionedItems;
+  }
+  return result.headings.tasks || result.headings.shopping || unsectionedItems.length ? result : null;
 }
 
 async function findChecklistContainer(env, pageId, blocks, depth = 0, visited = new Set()) {
