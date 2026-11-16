@@ -392,10 +392,12 @@ function parsedShoppingText(text) {
 }
 
 function applyNotionChecklists(garage, checklists) {
-  const shoppingItems = [...garage.shoppingItems];
+  let shoppingItems = [...garage.shoppingItems];
   const bikes = garage.bikes.map((bike) => {
     const checklist = checklists.get(bike.id);
     if (!checklist) return bike;
+    const taskBlockShoppingIds = new Set(checklist.blocks.tasks.map((item) => `notion-shopping-${item.id}`));
+    shoppingItems = shoppingItems.filter((item) => !taskBlockShoppingIds.has(item.id));
     const tasks = [...bike.tasks];
     for (const item of checklist.blocks.tasks) {
       const existing = tasks.find((task) => normalizedChecklistText(task.title) === normalizedChecklistText(item.text));

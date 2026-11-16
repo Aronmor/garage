@@ -398,11 +398,24 @@ test('aggregates checklist blocks from multiple page columns', async (t) => {
       ],
     },
   });
-  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  const response = await worker.fetch(request('/sync', {
+    localGarage: garage({
+      shoppingItems: [{
+        id: 'notion-shopping-task-item',
+        name: 'Motor szétszedése',
+        quantity: '',
+        category: 'Motoralkatrész',
+        bikeId: 'bike-1',
+        status: 'Beszerzendő',
+      }],
+    }),
+    baseGarage: null,
+  }), env);
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Motor szétszedése'));
   assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Gyertya' && item.bikeId === 'bike-1'));
+  assert.equal(payload.garage.shoppingItems.some((item) => item.name === 'Motor szétszedése'), false);
   assert.equal(mock.calls.some((call) => call.pathname === '/v1/blocks/tasks-column/children'), true);
 });
 
