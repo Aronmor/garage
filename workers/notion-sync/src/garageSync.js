@@ -111,6 +111,23 @@ function validGarage(value) {
     Array.isArray(value.documents);
 }
 
+function normalizeGarage(value) {
+  return {
+    ...value,
+    bikes: value.bikes.map((bike) => ({
+      ...bike,
+      status: typeof bike.status === 'string' && bike.status.trim() ? bike.status : 'Tervezett',
+      frameNumber: bike.frameNumber ?? '',
+      engineNumber: bike.engineNumber ?? '',
+      specifications: bike.specifications ?? [],
+      photos: bike.photos ?? [],
+      tasks: bike.tasks ?? [],
+      guides: bike.guides ?? [],
+    })),
+    documents: value.documents ?? [],
+  };
+}
+
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
   if (value && typeof value === 'object') {
@@ -178,8 +195,14 @@ function pageBike(page) {
   const name = propertyValue(properties.Name);
   const year = propertyValue(properties.Year);
   const status = propertyValue(properties.Status);
-  if (id === MASTER_APP_ID || !name || !Number.isInteger(year) || typeof status !== 'string') return null;
-  return { id: id || page.id, pageId: page.id, name, year, status };
+  if (id === MASTER_APP_ID || !name || !Number.isInteger(year)) return null;
+  return {
+    id: id || page.id,
+    pageId: page.id,
+    name,
+    year,
+    status: typeof status === 'string' && status.trim() ? status : 'Tervezett',
+  };
 }
 
 function stateBlockText(block) {
@@ -263,7 +286,8 @@ async function readState(env, masterPageId, blocks) {
       const response = await fetch(stateFile.url);
       if (!response.ok) continue;
       const state = await response.json();
-      if (validGarage(state)) return state;
+      const normalized = normalizeGarage(state);
+      if (validGarage(normalized)) return normalized;
     } catch (error) {
       console.error('Unable to read a Notion garage state file:', safeErrorCode(error));
     }
@@ -293,7 +317,7 @@ async function writeState(env, pageId, blocks, garage) {
   });
   if (!result.results?.length) throw new Error('Notion did not confirm the new garage snapshot attachment.');
   const verified = await readState(env, pageId, result.results);
-  if (!equal(verified, garage)) throw new Error('The new Notion garage snapshot could not be verified; the previous copy was preserved.');
+  if (!equal(verified, normalizeGarage(garage))) throw new Error('The new Notion garage snapshot could not be verified; the previous copy was preserved.');
   for (const block of blocks) {
     if (stateBlockText(block)) {
       await notionRequest(`/blocks/${encodeURIComponent(block.id)}`, env, { method: 'DELETE' });
@@ -453,7 +477,8 @@ async function handleSync(request, env, origin) {
     const pages = await listDatabasePages(env, dataSourceId);
     const masterPage = await findMasterPage(env, dataSourceId, pages);
     const blocks = await listChildren(env, masterPage.id);
-    const remoteGarage = await readState(env, masterPage.id, blocks);
+    const savedGarage = await readState(env, masterPage.id, blocks);
+    const remoteGarage = savedGarage ? normalizeGarage(savedGarage) : null;
     let garage;
     if (!remoteGarage) {
       garage = initializeFromNotion(body.localGarage, pages);

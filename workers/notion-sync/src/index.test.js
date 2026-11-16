@@ -85,7 +85,9 @@ function mockNotion(t, { initialPages = [], fileUrl = null, directDataSource = f
     calls.push({ pathname: url.pathname, method, body, headers: new Headers(init.headers) });
 
     if (url.pathname.startsWith('/v1/databases/')) {
-      if (directDataSource) return Response.json({ message: 'Could not find database' }, { status: 404 });
+      if (directDataSource && url.pathname === '/v1/databases/data-source-id') {
+        return Response.json({ message: 'Could not find database' }, { status: 404 });
+      }
       return Response.json({ data_sources: [{ id: 'data-source-id' }] });
     }
     if (url.pathname === '/v1/data_sources/data-source-id') {
@@ -265,6 +267,44 @@ test('creates the private master row, saves complete garage state, and mirrors m
   assert.ok(mock.calls.some((call) =>
     call.pathname === `/v1/blocks/${mock.masterPageId}/children` && call.method === 'PATCH',
   ));
+});
+
+test('normalizes legacy garage bikes and Notion rows with empty status', async (t) => {
+  const notionBike = {
+    id: 'notion-bike-page',
+    properties: {
+      Name: { type: 'title', title: [{ plain_text: 'MZ 125' }] },
+      'App ID': { type: 'rich_text', rich_text: [{ plain_text: 'bike-2' }] },
+      Year: { type: 'number', number: 1985 },
+      Status: { type: 'rich_text', rich_text: [] },
+    },
+  };
+  const mock = mockNotion(t, { initialPages: [masterPage(), notionBike] });
+  const first = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  assert.equal(first.status, 200);
+  const firstResult = await first.json();
+  assert.equal(firstResult.garage.bikes.find((bike) => bike.id === 'bike-2').status, 'Tervezett');
+
+  const stateBlock = mock.children.get('master-page').find((block) =>
+    block.file?.caption?.[0]?.plain_text?.startsWith('MGSTATEFILEv1|'),
+  );
+  const stateUrl = stateBlock.file.file.url;
+  const savedState = JSON.parse(new TextDecoder().decode(mock.fileContents.get(stateUrl)));
+  delete savedState.bikes[0].frameNumber;
+  delete savedState.bikes[0].engineNumber;
+  savedState.bikes[0].status = '';
+  mock.fileContents.set(stateUrl, new TextEncoder().encode(JSON.stringify(savedState)));
+
+  const second = await worker.fetch(request('/sync', {
+    localGarage: firstResult.garage,
+    baseGarage: firstResult.garage,
+  }), env);
+  assert.equal(second.status, 200);
+  const secondResult = await second.json();
+  assert.equal(secondResult.garage.bikes[0].frameNumber, '');
+  assert.equal(secondResult.garage.bikes[0].engineNumber, '');
+  assert.equal(secondResult.garage.bikes[0].status, 'Folyamatban');
+  assert.equal(secondResult.garage.bikes.some((bike) => bike.id === 'bike-2'), true);
 });
 
 test('merges independent app edits while Notion wins conflicting edits', async (t) => {
