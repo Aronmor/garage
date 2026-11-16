@@ -258,6 +258,163 @@ async function listChildren(env, blockId) {
   return blocks;
 }
 
+function richTextContent(parts) {
+  return (parts ?? []).map((part) => part.plain_text ?? part.text?.content ?? '').join('').trim();
+}
+
+function checklistSectionFor(block) {
+  if (!['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) return null;
+  const text = richTextContent(block[block.type]?.rich_text).toLocaleLowerCase();
+  if (/(aufgabe|task|feladat)/.test(text)) return 'tasks';
+  if (/(einkauf|shopping|bevásárl|beszer)/.test(text)) return 'shopping';
+  return null;
+}
+
+function checklistItem(block) {
+  if (block?.type !== 'to_do') return null;
+  const text = richTextContent(block.to_do?.rich_text);
+  return text ? { id: block.id, text, checked: block.to_do?.checked === true } : null;
+}
+
+async function readBikeChecklists(env, pages) {
+  const checklists = new Map();
+  for (const page of pages) {
+    const bike = pageBike(page);
+    if (!bike) continue;
+    const result = {
+      pageId: page.id,
+      headings: { tasks: null, shopping: null },
+      blocks: { tasks: [], shopping: [] },
+    };
+    let section = null;
+    for (const block of await listChildren(env, page.id)) {
+      if (['heading_1', 'heading_2', 'heading_3'].includes(block?.type)) {
+        section = checklistSectionFor(block);
+        if (section) result.headings[section] = block.id;
+        continue;
+      }
+      const item = checklistItem(block);
+      if (section && item) result.blocks[section].push(item);
+    }
+    if (result.headings.tasks || result.headings.shopping) checklists.set(bike.id, result);
+  }
+  return checklists;
+}
+
+function normalizedChecklistText(value) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function shoppingText(item) {
+  return item.quantity ? `${item.name} — ${item.quantity}` : item.name;
+}
+
+function parsedShoppingText(text) {
+  const separator = text.indexOf(' — ');
+  return separator < 0
+    ? { name: text, quantity: '' }
+    : { name: text.slice(0, separator), quantity: text.slice(separator + 3) };
+}
+
+function applyNotionChecklists(garage, checklists) {
+  const shoppingItems = [...garage.shoppingItems];
+  const bikes = garage.bikes.map((bike) => {
+    const checklist = checklists.get(bike.id);
+    if (!checklist) return bike;
+    const tasks = [...bike.tasks];
+    for (const item of checklist.blocks.tasks) {
+      const existing = tasks.find((task) => normalizedChecklistText(task.title) === normalizedChecklistText(item.text));
+      if (existing) {
+        existing.title = item.text;
+        existing.done = item.checked;
+      } else {
+        tasks.push({ id: `notion-task-${item.id}`, title: item.text, category: 'Notion', done: item.checked });
+      }
+    }
+    for (const item of checklist.blocks.shopping) {
+      const parsed = parsedShoppingText(item.text);
+      const existing = shoppingItems.find((shoppingItem) =>
+        shoppingItem.bikeId === bike.id &&
+        normalizedChecklistText(shoppingItem.name) === normalizedChecklistText(parsed.name),
+      );
+      if (existing) {
+        existing.name = parsed.name;
+        existing.quantity = parsed.quantity;
+        existing.status = item.checked ? 'Megérkezett' : 'Beszerzendő';
+      } else {
+        shoppingItems.push({
+          id: `notion-shopping-${item.id}`,
+          name: parsed.name,
+          quantity: parsed.quantity,
+          category: 'Motoralkatrész',
+          bikeId: bike.id,
+          status: item.checked ? 'Megérkezett' : 'Beszerzendő',
+        });
+      }
+    }
+    return { ...bike, tasks };
+  });
+  return { ...garage, bikes, shoppingItems };
+}
+
+function checklistBlockPayload(text, checked) {
+  return {
+    object: 'block',
+    type: 'to_do',
+    to_do: {
+      rich_text: [{ type: 'text', text: { content: text.slice(0, 2000) } }],
+      checked,
+    },
+  };
+}
+
+async function syncBikeChecklists(env, garage, checklists) {
+  for (const bike of garage.bikes) {
+    const checklist = checklists.get(bike.id);
+    if (!checklist) continue;
+    const tasksByTitle = new Map(bike.tasks.map((task) => [normalizedChecklistText(task.title), task]));
+    const shoppingByName = new Map(
+      garage.shoppingItems
+        .filter((item) => item.bikeId === bike.id)
+        .map((item) => [normalizedChecklistText(item.name), item]),
+    );
+    for (const section of ['tasks', 'shopping']) {
+      for (const block of checklist.blocks[section]) {
+        const parsed = section === 'shopping' ? parsedShoppingText(block.text) : null;
+        const value = section === 'tasks'
+          ? tasksByTitle.get(normalizedChecklistText(block.text))
+          : shoppingByName.get(normalizedChecklistText(parsed.name));
+        if (!value) continue;
+        const text = section === 'tasks' ? value.title : shoppingText(value);
+        const checked = section === 'tasks' ? value.done : value.status === 'Megérkezett';
+        await notionRequest(`/blocks/${encodeURIComponent(block.id)}`, env, {
+          method: 'PATCH',
+          body: JSON.stringify({ type: 'to_do', to_do: checklistBlockPayload(text, checked).to_do }),
+        });
+      }
+    }
+    const missing = [
+      ...[...tasksByTitle.entries()]
+        .filter(([title]) => !checklist.blocks.tasks.some((block) => normalizedChecklistText(block.text) === title))
+        .map(([, task]) => ({ section: 'tasks', text: task.title, checked: task.done })),
+      ...[...shoppingByName.entries()]
+        .filter(([name]) => !checklist.blocks.shopping.some((block) => normalizedChecklistText(parsedShoppingText(block.text).name) === name))
+        .map(([, item]) => ({ section: 'shopping', text: shoppingText(item), checked: item.status === 'Megérkezett' })),
+    ];
+    for (const item of missing) {
+      const headingId = checklist.headings[item.section];
+      if (!headingId) continue;
+      await notionRequest(`/blocks/${encodeURIComponent(checklist.pageId)}/children`, env, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          children: [checklistBlockPayload(item.text, item.checked)],
+          position: { type: 'after_block', after_block: { id: headingId } },
+        }),
+      });
+    }
+  }
+}
+
 async function findMasterPage(env, dataSourceId, pages) {
   const existing = pages.filter((page) => propertyValue(page.properties?.['App ID']) === MASTER_APP_ID);
   if (existing.length > 1) throw new Error('More than one MűhelyGarázs sync page exists. Remove the duplicate row in Notion.');
@@ -477,6 +634,7 @@ async function handleSync(request, env, origin) {
     const pages = await listDatabasePages(env, dataSourceId);
     const masterPage = await findMasterPage(env, dataSourceId, pages);
     const blocks = await listChildren(env, masterPage.id);
+    const checklists = await readBikeChecklists(env, pages);
     const savedGarage = await readState(env, masterPage.id, blocks);
     const remoteGarage = savedGarage ? normalizeGarage(savedGarage) : null;
     let garage;
@@ -489,12 +647,14 @@ async function handleSync(request, env, origin) {
         : currentNotionGarage;
       if (!validGarage(garage)) throw new Error('The merge produced invalid garage data. No data was changed.');
     }
+    garage = applyNotionChecklists(garage, checklists);
 
     if (new TextEncoder().encode(JSON.stringify(garage)).byteLength > MAX_STATE_BYTES) {
       return jsonResponse({ error: 'Merged garage data exceeds the 160 KB Notion sync limit.' }, 413, origin);
     }
     await upsertBikes(env, dataSourceId, pages, garage.bikes);
     await archiveRemovedBikes(env, pages, garage.bikes);
+    await syncBikeChecklists(env, garage, checklists);
     const refreshedBlocks = await listChildren(env, masterPage.id);
     await writeState(env, masterPage.id, refreshedBlocks, garage);
     const finalBlocks = await listChildren(env, masterPage.id);

@@ -66,11 +66,12 @@ function notionPropertyValues(properties) {
   return output;
 }
 
-function mockNotion(t, { initialPages = [], fileUrl = null, directDataSource = false } = {}) {
+function mockNotion(t, { initialPages = [], initialChildren = {}, fileUrl = null, directDataSource = false } = {}) {
   const originalFetch = globalThis.fetch;
   const calls = [];
   const pages = [...initialPages];
   const children = new Map();
+  for (const [pageId, blocks] of Object.entries(initialChildren)) children.set(pageId, structuredClone(blocks));
   const fileContents = new Map();
   let pageNumber = 0;
   let blockNumber = 0;
@@ -152,6 +153,17 @@ function mockNotion(t, { initialPages = [], fileUrl = null, directDataSource = f
     if (/^\/v1\/blocks\/[^/]+\/children$/.test(url.pathname) && method === 'GET') {
       const pageId = url.pathname.split('/').at(-2);
       return Response.json({ results: children.get(pageId) ?? [], has_more: false });
+    }
+    if (/^\/v1\/blocks\/[^/]+$/.test(url.pathname) && method === 'PATCH') {
+      const blockId = url.pathname.split('/').at(-1);
+      for (const blocks of children.values()) {
+        const block = blocks.find((candidate) => candidate.id === blockId);
+        if (block && body.type === 'to_do') {
+          block.to_do = body.to_do;
+          block.type = 'to_do';
+        }
+      }
+      return Response.json({ id: blockId });
     }
     if (url.pathname.startsWith('/v1/blocks/') && url.pathname.endsWith('/children') && method === 'PATCH') {
       const pageId = url.pathname.split('/').at(-2);
@@ -266,6 +278,58 @@ test('creates the private master row, saves complete garage state, and mirrors m
   ));
   assert.ok(mock.calls.some((call) =>
     call.pathname === `/v1/blocks/${mock.masterPageId}/children` && call.method === 'PATCH',
+  ));
+});
+
+test('syncs motorcycle page checklists into tasks and shopping items', async (t) => {
+  const bikePage = {
+    id: 'bike-page-1',
+    properties: {
+      Name: { type: 'title', title: [{ plain_text: 'Jawa 350' }] },
+      'App ID': { type: 'rich_text', rich_text: [{ plain_text: 'bike-1' }] },
+      Year: { type: 'number', number: 1982 },
+      Status: { type: 'rich_text', rich_text: [{ plain_text: 'Folyamatban' }] },
+    },
+  };
+  const mock = mockNotion(t, {
+    initialPages: [bikePage],
+    initialChildren: {
+      'bike-page-1': [
+        {
+          id: 'heading-tasks',
+          type: 'heading_2',
+          heading_2: { rich_text: [{ plain_text: 'Aufgaben' }] },
+        },
+        {
+          id: 'todo-oil',
+          type: 'to_do',
+          to_do: { rich_text: [{ plain_text: 'Check oil' }], checked: true },
+        },
+        {
+          id: 'heading-shopping',
+          type: 'heading_2',
+          heading_2: { rich_text: [{ plain_text: 'Einkaufsliste' }] },
+        },
+        {
+          id: 'shopping-filter',
+          type: 'to_do',
+          to_do: { rich_text: [{ plain_text: 'Ölfilter — 1 Stück' }], checked: false },
+        },
+      ],
+    },
+  });
+  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Check oil' && task.done));
+  assert.ok(payload.garage.shoppingItems.some((item) =>
+    item.name === 'Ölfilter' && item.quantity === '1 Stück' && item.bikeId === 'bike-1',
+  ));
+  assert.ok(mock.calls.some((call) => call.pathname === '/v1/blocks/todo-oil' && call.method === 'PATCH'));
+  assert.ok(mock.calls.some((call) =>
+    call.pathname === '/v1/blocks/bike-page-1/children' &&
+    call.method === 'PATCH' &&
+    call.body.children.some((block) => block.to_do?.rich_text?.[0]?.text?.content === 'Carburetor'),
   ));
 });
 

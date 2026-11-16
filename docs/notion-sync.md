@@ -7,6 +7,8 @@ Die App gleicht die Werkstattdaten auf ausdrücklichen Knopfdruck mit **deinem p
 - Motorrad-Stammdaten und -Eigenschaften, Aufgaben, Planungszeiträume, Einkaufsliste, Werkstatttemperatur, Timer, Chemikalien und KI-Anleitungen werden als privater JSON-Snapshot in Notion gespeichert.
 - Die Motorräder werden zusätzlich als Zeilen in deiner vorhandenen Notion-Motorraddatenbank gespiegelt. Dort kannst du Name, Baujahr und Status direkt bearbeiten; diese Felder werden beim nächsten Sync zurück in die App gelesen.
 - Fotos und gespeicherte Originaldokumente werden als private Notion-Dateianhänge gesichert und beim Synchronisieren auf ein anderes Gerät zurückgeladen.
+- Auf jeder Motorrad-Seite können direkte Checkboxen unter Überschriften wie `Aufgaben` und `Einkaufsliste` verwendet werden. Diese werden mit den Aufgaben bzw. der motorradbezogenen Einkaufsliste der App verbunden; erledigte Checkboxen entsprechen erledigten Aufgaben bzw. angekommenen Artikeln.
+- Andere Blöcke auf den Motorrad-Seiten bleiben erhalten. Die Abschnittsüberschriften müssen als Notion-Überschrift (`Heading 1` bis `Heading 3`) angelegt sein; unterstützt werden deutsche, englische und ungarische Bezeichnungen wie `Aufgaben`, `Tasks`, `Einkaufsliste` und `Shopping`.
 - Ein zusätzlicher `MűhelyGarázs — privát synchronizálási adatok`-Eintrag mit dem App-internen Kennzeichen `__muhelygarazs_master_state_v1__` enthält den vollständigen Snapshot und die Dateianhänge. Nicht manuell löschen oder umbenennen.
 - Original-PDF-, TXT- und Markdown-Dateien bleiben nur dann erhalten, wenn du den aus dem Dokument erzeugten KI-Leitfaden speicherst. Die App speichert weder Gemini-API-Schlüssel noch ungespeicherte Dokumente.
 
