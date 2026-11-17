@@ -41,7 +41,7 @@ Notion-Free begrenzt Datei-Uploads auf **5 MB pro Datei**. Der Sync nimmt höchs
 Öffne PowerShell:
 
 ```powershell
-cd C:\Users\fispa\Downloads\muhely-garazs-app\workers\notion-sync
+cd C:\path\to\muhely-garazs-app\workers\notion-sync
 bunx wrangler login
 bunx wrangler deploy
 ```
