@@ -1327,9 +1327,6 @@ function App() {
             <button className={activeView === 'garage' || activeView === 'bike' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('garage')}>
               <span className="nav-icon">▦</span> Garázs
             </button>
-            <button className={activeView === 'tasks' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('tasks')}>
-              <span className="nav-icon">☷</span> Teendők <span className="nav-count">{openTasks}</span>
-            </button>
             <button className={activeView === 'plan' ? 'nav-item active' : 'nav-item'} onClick={() => setActiveView('plan')}>
               <span className="nav-icon">◷</span> Tervek
             </button>
@@ -1398,7 +1395,7 @@ function App() {
               onAddTask={addTask}
               onToggleTask={toggleTask}
               onRemoveTask={removeTask}
-              onShowTasks={() => setActiveView('tasks')}
+              onShowTasks={() => setActiveView('plan')}
               onUpdateSpecification={(key, value) => updateBikeSpecification(activeBike.id, key, value)}
               onAddSpecification={(label) => addCustomBikeSpecification(activeBike.id, label)}
               onUpdateCustomSpecification={(id, key, value) => updateCustomBikeSpecification(activeBike.id, id, key, value)}
@@ -1558,13 +1555,6 @@ function App() {
                 <button className="add-bike-link" type="button" onClick={() => setShowBikeForm(true)}>＋ Új motor hozzáadása</button>
               </div>
             </section>
-            <HomeTasksPanel
-              bikes={garage.bikes}
-              planningPeriods={garage.planningPeriods}
-              onAddTask={addTask}
-              onToggleTask={toggleBikeTask}
-              onOpenBike={(bikeId) => selectBike(bikeId)}
-            />
           </>
         ) : (
           <section className="tasks-page panel">
@@ -2141,83 +2131,6 @@ function BikeProfile({
         )}
       </section>
     </div>
-    </Localized>
-  );
-}
-
-interface HomeTasksPanelProps {
-  bikes: Bike[];
-  planningPeriods: string[];
-  onAddTask: (event: FormEvent<HTMLFormElement>) => void;
-  onToggleTask: (bikeId: string, taskId: string) => void;
-  onOpenBike: (bikeId: string) => void;
-}
-
-function HomeTasksPanel({ bikes, planningPeriods, onAddTask, onToggleTask, onOpenBike }: HomeTasksPanelProps) {
-  const { t } = useTranslation();
-  const [showAll, setShowAll] = useState(false);
-  const tasks = bikes.flatMap((bike) =>
-    bike.tasks.filter((task) => !task.done).map((task) => ({ bike, task })),
-  );
-  const displayedTasks = showAll ? tasks : tasks.slice(0, 6);
-
-  return (
-    <Localized>
-    <section className="home-tasks-panel panel">
-      <div className="panel-heading home-tasks-heading">
-        <div>
-          <p className="eyebrow">MINDEN MOTOR PROJEKTJE</p>
-          <h2>Nyitott teendők <span className="heading-count">{tasks.length}</span></h2>
-        </div>
-        {tasks.length > 6 && (
-          <button className="text-button" type="button" onClick={() => setShowAll((current) => !current)}>
-            {showAll ? 'Kevesebb' : 'Mind a ' + tasks.length} <span>→</span>
-          </button>
-        )}
-      </div>
-      {bikes.length > 0 && (
-        <form className="task-form home-task-form" onSubmit={onAddTask}>
-          <label className="sr-only" htmlFor="home-task-title">Új teendő</label>
-          <input id="home-task-title" name="title" placeholder="Új teendő bármelyik motorhoz…" required />
-          <label className="sr-only" htmlFor="home-task-bike">Motor</label>
-          <select id="home-task-bike" name="bikeId" aria-label="Motor kiválasztása" defaultValue={bikes[0].id}>
-            {bikes.map((bike) => <option key={bike.id} value={bike.id}>{bike.name}</option>)}
-          </select>
-          <label className="sr-only" htmlFor="home-task-period">Tervezett időszak</label>
-          <select id="home-task-period" name="period" aria-label="Tervezett időszak" defaultValue="Bármikor">
-            {planningPeriods.map((period) => <option key={period} value={period}>{period}</option>)}
-          </select>
-          <button className="button button-primary task-add-button" type="submit" aria-label="Teendő hozzáadása">＋</button>
-        </form>
-      )}
-      {displayedTasks.length ? (
-        <ul className="home-task-list">
-          {displayedTasks.map(({ bike, task }) => (
-            <li className="task-row" key={`${bike.id}:${task.id}`}>
-              <button
-                className="task-check"
-                type="button"
-                onClick={() => onToggleTask(bike.id, task.id)}
-                aria-label={`${t('Feladat készre jelölése')}: ${task.title}`}
-              />
-              <span className="task-copy">
-                <strong>{task.title}</strong>
-                <small>{bike.name} · {task.category}{task.period ? <> · {t(task.period)}</> : ''}</small>
-              </span>
-              <button className="home-task-open" type="button" onClick={() => onOpenBike(bike.id)} aria-label={`${bike.name} ${t('adatlapjának megnyitása')}`}>
-                Motor megnyitása →
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <div className="empty-tasks home-tasks-empty">
-          <span>✓</span>
-          <strong>{bikes.length ? 'Minden teendő kész!' : 'Még nincs motor a garázsban'}</strong>
-          <small>{bikes.length ? 'A nyitott feladatok minden projektből itt jelennek meg.' : 'Adj hozzá egy motort, majd rögzítsd az első teendődet.'}</small>
-        </div>
-      )}
-    </section>
     </Localized>
   );
 }
