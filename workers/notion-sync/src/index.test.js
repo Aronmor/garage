@@ -439,6 +439,8 @@ test('keeps checklist items under Hungarian shopping and planning subheadings', 
         { id: 'shopping-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Fékfolyadék' }], checked: false } },
         { id: 'summer-parts-heading', type: 'heading_3', heading_3: { rich_text: [{ plain_text: 'Alkatrészek Nyárra' }] } },
         { id: 'summer-part', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Luftfilter' }], checked: false } },
+        { id: 'paint-heading', type: 'heading_3', heading_3: { rich_text: [{ plain_text: 'Festés nyárra' }] } },
+        { id: 'paint-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Festék' }], checked: false } },
         { id: 'planning-heading', type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Ütemterv' }] } },
         { id: 'summer-heading', type: 'heading_3', heading_3: { rich_text: [{ plain_text: 'Nyár' }] } },
         { id: 'planning-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Probefahrt' }], checked: false } },
@@ -461,6 +463,7 @@ test('keeps checklist items under Hungarian shopping and planning subheadings', 
   const payload = await response.json();
   assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Fékfolyadék'));
   assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Luftfilter'));
+  assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Festék'));
   assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Probefahrt' && task.category === 'Planung'));
   assert.equal(payload.garage.bikes[0].tasks.some((task) => task.id === 'notion-task-summer-part'), false);
 });
