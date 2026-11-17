@@ -420,6 +420,36 @@ test('aggregates checklist blocks from multiple page columns', async (t) => {
   assert.equal(mock.calls.some((call) => call.pathname === '/v1/blocks/tasks-column/children'), true);
 });
 
+test('keeps checklist items under Hungarian shopping and planning subheadings', async (t) => {
+  const bikePage = {
+    id: 'bike-page-1',
+    properties: {
+      Name: { type: 'title', title: [{ plain_text: 'Jawa 350' }] },
+      'App ID': { type: 'rich_text', rich_text: [{ plain_text: 'bike-1' }] },
+      Year: { type: 'number', number: 1982 },
+      Status: { type: 'rich_text', rich_text: [{ plain_text: 'Folyamatban' }] },
+    },
+  };
+  mockNotion(t, {
+    initialPages: [bikePage],
+    initialChildren: {
+      'bike-page-1': [
+        { id: 'shopping-heading', type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Bevásárló lista' }] } },
+        { id: 'supplies-heading', type: 'heading_3', heading_3: { rich_text: [{ plain_text: 'Kellékek' }] } },
+        { id: 'shopping-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Fékfolyadék' }], checked: false } },
+        { id: 'planning-heading', type: 'heading_2', heading_2: { rich_text: [{ plain_text: 'Ütemterv' }] } },
+        { id: 'summer-heading', type: 'heading_3', heading_3: { rich_text: [{ plain_text: 'Nyár' }] } },
+        { id: 'planning-item', type: 'to_do', to_do: { rich_text: [{ plain_text: 'Probefahrt' }], checked: false } },
+      ],
+    },
+  });
+  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Fékfolyadék'));
+  assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Probefahrt' && task.category === 'Planung'));
+});
+
 test('normalizes legacy garage bikes and Notion rows with empty status', async (t) => {
   const notionBike = {
     id: 'notion-bike-page',
