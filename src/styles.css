@@ -145,6 +145,7 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
 .period-delete-button { margin-top: 9px; }
 .period-delete-button:disabled { opacity: .48; cursor: not-allowed; }
 .bike-list { display: grid; gap: 8px; margin-top: 18px; }
+.bike-card-wrap { min-width: 0; }
 .bike-card { width: 100%; display: flex; align-items: center; gap: 11px; padding: 9px 8px; border: 1px solid transparent; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; transition: border-color .15s ease, background .15s ease; }
 .bike-card:hover { background: #1d201b; }
 .bike-card.selected { border-color: #665135; background: linear-gradient(105deg, #29251d, #211f1a); }
@@ -163,6 +164,15 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
 .bike-mini-progress { height: 3px; display: block; overflow: hidden; margin-top: 8px; border-radius: 4px; background: #35372f; }
 .bike-mini-progress > span { height: 100%; display: block; border-radius: inherit; background: #b4884c; }
 .bike-chevron { color: #777b70; font-size: 22px; line-height: 1; }
+.bike-chevron.expanded { transform: rotate(90deg); color: var(--amber-light); }
+.bike-quick-details { margin: -1px 0 2px; padding: 13px 10px 12px 85px; border: 1px solid #665135; border-top: 0; border-radius: 0 0 8px 8px; background: #211f1a; }
+.bike-quick-details-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.bike-quick-details-heading .eyebrow { margin: 0; }
+.bike-quick-details-heading .button { min-height: 28px; padding: 0 9px; font-size: 9px; }
+.bike-quick-spec-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 13px; margin-top: 11px; }
+.bike-quick-spec-grid span { display: grid; gap: 3px; min-width: 0; }
+.bike-quick-spec-grid small { overflow: hidden; color: #85897e; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.bike-quick-spec-grid strong { overflow: hidden; color: #dedfd6; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .add-bike-link { width: 100%; margin-top: 12px; padding: 11px 4px 2px; border: 0; border-top: 1px solid #2a2d26; background: transparent; color: #c79a5a; text-align: left; cursor: pointer; font-size: 10px; font-weight: 700; }
 .add-bike-link:hover, .text-button:hover { color: var(--amber-light); }
 .bike-details { display: grid; grid-template-columns: minmax(0, 1fr); gap: 15px; min-width: 0; }
@@ -511,6 +521,7 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
   .stat-card > strong { font-size: 24px; }
   .stat-progress .progress-track { margin-top: 11px; }
   .bike-list { grid-template-columns: 1fr; }
+  .bike-quick-details { padding-left: 10px; }
   .bike-profile-heading { align-items: flex-start; flex-direction: column-reverse; gap: 10px; }
   .technical-spec-grid { grid-template-columns: 1fr; }
   .custom-specification { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr) 28px; }

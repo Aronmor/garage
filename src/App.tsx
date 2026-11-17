@@ -396,6 +396,7 @@ function App() {
   const [shoppingFilter, setShoppingFilter] = useState<TaskFilter>('open');
   const [shoppingScope, setShoppingScope] = useState('all');
   const [garageListCollapsed, setGarageListCollapsed] = useState(true);
+  const [expandedBikeId, setExpandedBikeId] = useState<string | null>(null);
   const [mobileProjectCollapsed, setMobileProjectCollapsed] = useState(() =>
     window.matchMedia('(max-width: 560px) and (orientation: portrait)').matches,
   );
@@ -1499,27 +1500,50 @@ function App() {
                     const bikeProgress = bike.tasks.length ? Math.round((done / bike.tasks.length) * 100) : 0;
                     const selected = bike.id === activeBike?.id;
                     return (
-                      <button
-                        className={selected ? 'bike-card selected' : 'bike-card'}
-                        key={bike.id}
-                        type="button"
-                        onClick={() => selectBike(bike.id)}
-                        aria-label={`${bike.name} ${t('adatlapjának megnyitása')}`}
-                      >
-                        <span className={`bike-thumb bike-thumb-${index % 2}`} aria-hidden="true">
-                          <svg viewBox="0 0 90 55" role="presentation">
-                            <circle cx="20" cy="40" r="11" /><circle cx="70" cy="40" r="11" />
-                            <path d="M20 40 33 23h18l19 17M33 23l10 17h27M51 23l8-8h8M37 20h-8" />
-                            <path d="M43 40l8-17M33 23l-5-5" />
-                          </svg>
-                        </span>
-                        <span className="bike-info">
-                          <span className="bike-title-row"><strong>{bike.name}</strong><span className={`status-dot status-${bike.status === 'Kész' ? 'done' : bike.status === 'Áll' ? 'paused' : 'active'}`} /></span>
-                          <span className="bike-year">{bike.year} <span>·</span> {bike.status}</span>
-                          <span className="bike-mini-progress"><span style={{ width: `${bikeProgress}%` }} /></span>
-                        </span>
-                        <span className="bike-chevron">›</span>
-                      </button>
+                      <div className="bike-card-wrap" key={bike.id}>
+                        <button
+                          className={selected ? 'bike-card selected' : 'bike-card'}
+                          type="button"
+                          onClick={() => {
+                            setGarage((current) => ({ ...current, activeBikeId: bike.id }));
+                            setExpandedBikeId((current) => current === bike.id ? null : bike.id);
+                          }}
+                          aria-expanded={expandedBikeId === bike.id}
+                          aria-label={`${bike.name} ${t('adatlapjának megnyitása')}`}
+                        >
+                          <span className={`bike-thumb bike-thumb-${index % 2}`} aria-hidden="true">
+                            <svg viewBox="0 0 90 55" role="presentation">
+                              <circle cx="20" cy="40" r="11" /><circle cx="70" cy="40" r="11" />
+                              <path d="M20 40 33 23h18l19 17M33 23l10 17h27M51 23l8-8h8M37 20h-8" />
+                              <path d="M43 40l8-17M33 23l-5-5" />
+                            </svg>
+                          </span>
+                          <span className="bike-info">
+                            <span className="bike-title-row"><strong>{bike.name}</strong><span className={`status-dot status-${bike.status === 'Kész' ? 'done' : bike.status === 'Áll' ? 'paused' : 'active'}`} /></span>
+                            <span className="bike-year">{bike.year} <span>·</span> {bike.status}</span>
+                            <span className="bike-mini-progress"><span style={{ width: `${bikeProgress}%` }} /></span>
+                          </span>
+                          <span className={`bike-chevron ${expandedBikeId === bike.id ? 'expanded' : ''}`}>›</span>
+                        </button>
+                        {expandedBikeId === bike.id && (
+                          <div className="bike-quick-details">
+                            <div className="bike-quick-details-heading">
+                              <span className="eyebrow">JÁRMŰ ADATAI</span>
+                              <button className="button button-secondary" type="button" onClick={() => selectBike(bike.id)}>Teljes adatlap</button>
+                            </div>
+                            <div className="bike-quick-spec-grid">
+                              <span><small>Alvázszám / vázszám</small><strong>{bike.frameNumber || 'Nincs megadva'}</strong></span>
+                              <span><small>Motorszám</small><strong>{bike.engineNumber || 'Nincs megadva'}</strong></span>
+                              <span><small>Motorkód</small><strong>{bike.engineCode || 'Nincs megadva'}</strong></span>
+                              <span><small>Hengerűrtartalom</small><strong>{bike.displacementCc ? `${bike.displacementCc} cm³` : 'Nincs megadva'}</strong></span>
+                              <span><small>Teljesítmény</small><strong>{bike.power || 'Nincs megadva'}</strong></span>
+                              <span><small>Sebességváltó</small><strong>{bike.transmission || 'Nincs megadva'}</strong></span>
+                              <span><small>Üzemanyag / keverék</small><strong>{bike.fuel || 'Nincs megadva'}</strong></span>
+                              <span><small>Gyújtás</small><strong>{bike.ignition || 'Nincs megadva'}</strong></span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                   {garage.bikes.length === 0 && (
