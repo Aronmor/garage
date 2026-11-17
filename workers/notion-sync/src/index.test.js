@@ -445,12 +445,24 @@ test('keeps checklist items under Hungarian shopping and planning subheadings', 
       ],
     },
   });
-  const response = await worker.fetch(request('/sync', { localGarage: garage(), baseGarage: null }), env);
+  const response = await worker.fetch(request('/sync', {
+    localGarage: garage({
+      bikes: [{
+        ...garage().bikes[0],
+        tasks: [
+          ...garage().bikes[0].tasks,
+          { id: 'notion-task-summer-part', title: 'Luftfilter', category: 'Aufgabe', done: false },
+        ],
+      }],
+    }),
+    baseGarage: null,
+  }), env);
   assert.equal(response.status, 200);
   const payload = await response.json();
   assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Fékfolyadék'));
   assert.ok(payload.garage.shoppingItems.some((item) => item.name === 'Luftfilter'));
   assert.ok(payload.garage.bikes[0].tasks.some((task) => task.title === 'Probefahrt' && task.category === 'Planung'));
+  assert.equal(payload.garage.bikes[0].tasks.some((task) => task.id === 'notion-task-summer-part'), false);
 });
 
 test('normalizes legacy garage bikes and Notion rows with empty status', async (t) => {

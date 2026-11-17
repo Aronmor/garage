@@ -401,7 +401,8 @@ function applyNotionChecklists(garage, checklists) {
       [...checklist.blocks.tasks, ...checklist.blocks.planning].map((item) => `notion-shopping-${item.id}`),
     );
     shoppingItems = shoppingItems.filter((item) => !taskBlockShoppingIds.has(item.id));
-    const tasks = [...bike.tasks];
+    const shoppingBlockTaskIds = new Set(checklist.blocks.shopping.map((item) => `notion-task-${item.id}`));
+    const tasks = bike.tasks.filter((task) => !shoppingBlockTaskIds.has(task.id));
     for (const section of ['tasks', 'planning']) {
       for (const item of checklist.blocks[section]) {
       const existing = tasks.find((task) => normalizedChecklistText(task.title) === normalizedChecklistText(item.text));
