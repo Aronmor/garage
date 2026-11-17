@@ -142,6 +142,7 @@ function isShoppingItem(value: unknown): value is ShoppingItem {
     typeof value.name === 'string' &&
     typeof value.quantity === 'string' &&
     shoppingCategories.includes(value.category as ShoppingCategory) &&
+    (value.subcategory === undefined || typeof value.subcategory === 'string') &&
     (value.bikeId === null || typeof value.bikeId === 'string') &&
     (value.status === undefined || shoppingStatuses.includes(value.status as ShoppingStatus)) &&
     (value.bought === undefined || typeof value.bought === 'boolean')
@@ -2437,6 +2438,13 @@ function ShoppingList({
   const orderedCount = allItems.filter((item) => item.status === 'Megrendelve').length;
   const arrivedCount = allItems.filter((item) => item.status === 'Megérkezett').length;
   const itemBike = (bikeId: string | null) => bikes.find((bike) => bike.id === bikeId)?.name ?? 'Közös műhely';
+  const groupedItems = items.reduce<Array<{ title: string; items: ShoppingItem[] }>>((groups, item) => {
+    const title = item.subcategory || 'Ohne Unterteilung';
+    const group = groups.find((candidate) => candidate.title === title);
+    if (group) group.items.push(item);
+    else groups.push({ title, items: [item] });
+    return groups;
+  }, []);
 
   return (
     <Localized>
@@ -2481,30 +2489,37 @@ function ShoppingList({
         <span className="task-total">{items.length} tétel</span>
       </div>
       {items.length ? (
-        <ul className="shopping-items">
-          {items.map((item) => (
-            <li className={item.status === 'Megérkezett' ? 'shopping-row is-bought' : 'shopping-row'} key={item.id}>
-              <span className="shopping-item-copy">
-                <strong>{item.name}</strong>
-                <small>{item.category} · {itemBike(item.bikeId)}</small>
-              </span>
-              {item.quantity && <span className="shopping-quantity-value">{item.quantity}</span>}
-              <label className="sr-only" htmlFor={`shopping-status-${item.id}`}>{t('Beszerzés állapota')}: {item.name}</label>
-              <select
-                id={`shopping-status-${item.id}`}
-                className={`shopping-status shopping-status-${item.status === 'Beszerzendő' ? 'pending' : item.status === 'Megrendelve' ? 'ordered' : 'arrived'}`}
-                value={item.status}
-                onChange={(event) => {
-                  const status = shoppingStatuses.find((candidate) => candidate === event.target.value);
-                  if (status) onUpdateStatus(item.id, status);
-                }}
-              >
-                {shoppingStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
-              </select>
-              <button className="task-remove" type="button" onClick={() => onRemoveItem(item.id)} aria-label={`${t('Tétel törlése')}: ${item.name}`}>×</button>
-            </li>
+        <div className="shopping-groups">
+          {groupedItems.map((group) => (
+            <section className="shopping-group" key={group.title}>
+              <div className="shopping-group-heading"><h3>{group.title}</h3><span>{group.items.length}</span></div>
+              <ul className="shopping-items">
+                {group.items.map((item) => (
+                  <li className={item.status === 'Megérkezett' ? 'shopping-row is-bought' : 'shopping-row'} key={item.id}>
+                    <span className="shopping-item-copy">
+                      <strong>{item.name}</strong>
+                      <small>{item.category} · {itemBike(item.bikeId)}{item.subcategory ? ` · ${item.subcategory}` : ''}</small>
+                    </span>
+                    {item.quantity && <span className="shopping-quantity-value">{item.quantity}</span>}
+                    <label className="sr-only" htmlFor={`shopping-status-${item.id}`}>{t('Beszerzés állapota')}: {item.name}</label>
+                    <select
+                      id={`shopping-status-${item.id}`}
+                      className={`shopping-status shopping-status-${item.status === 'Beszerzendő' ? 'pending' : item.status === 'Megrendelve' ? 'ordered' : 'arrived'}`}
+                      value={item.status}
+                      onChange={(event) => {
+                        const status = shoppingStatuses.find((candidate) => candidate === event.target.value);
+                        if (status) onUpdateStatus(item.id, status);
+                      }}
+                    >
+                      {shoppingStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                    <button className="task-remove" type="button" onClick={() => onRemoveItem(item.id)} aria-label={`${t('Tétel törlése')}: ${item.name}`}>×</button>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       ) : (
         <div className="empty-tasks shopping-empty">
           <span>✓</span>

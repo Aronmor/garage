@@ -19,6 +19,7 @@ export interface ShoppingItem {
   name: string;
   quantity: string;
   category: ShoppingCategory;
+  subcategory?: string;
   bikeId: string | null;
   status: ShoppingStatus;
   bought?: boolean;

@@ -258,6 +258,12 @@ h1 { margin-bottom: 5px; color: #f0efe8; font-size: clamp(26px, 3.8vw, 35px); fo
 .shopping-toolbar { display: flex; align-items: center; gap: 12px; padding: 9px 0 0; border-top: 1px solid #292c25; }
 .shopping-toolbar > label { margin-left: auto; }
 .shopping-toolbar select { height: 31px; }
+.shopping-groups { display: grid; gap: 15px; margin-top: 15px; }
+.shopping-group { overflow: hidden; border: 1px solid #292c25; border-radius: 8px; }
+.shopping-group-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 11px; background: #1d201b; }
+.shopping-group-heading h3 { margin: 0; color: #d3b27a; font-size: 11px; font-weight: 700; }
+.shopping-group-heading span { min-width: 20px; padding: 3px 6px; border: 1px solid #3c382d; border-radius: 5px; color: #999b90; font-size: 9px; text-align: center; }
+.shopping-group .shopping-items { margin: 0; padding: 0 11px; }
 .shopping-items { padding: 0; margin: 0; list-style: none; }
 .shopping-row { min-height: 54px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #292c25; }
 .shopping-row:last-child { border-bottom: 0; }

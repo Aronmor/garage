@@ -290,10 +290,10 @@ function checklistSectionFor(block) {
   return null;
 }
 
-function checklistItem(block) {
+function checklistItem(block, subcategory) {
   if (block?.type !== 'to_do') return null;
   const text = richTextContent(block.to_do?.rich_text);
-  return text ? { id: block.id, text, checked: block.to_do?.checked === true } : null;
+  return text ? { id: block.id, text, checked: block.to_do?.checked === true, subcategory } : null;
 }
 
 function parseChecklistBlocks(pageId, blocks) {
@@ -304,17 +304,19 @@ function parseChecklistBlocks(pageId, blocks) {
     blocks: { tasks: [], planning: [], shopping: [] },
   };
   let section = null;
+  let subcategory = null;
   const unsectionedItems = [];
   for (const block of blocks) {
     if (['heading_1', 'heading_2', 'heading_3', 'paragraph'].includes(block?.type)) {
       section = checklistSectionFor(block);
       if (section) {
+        subcategory = richTextContent(block[block.type]?.rich_text ?? block.paragraph?.rich_text);
         result.headings[section] = block.id;
         result.targets[section] = { pageId, headingId: block.id };
       }
       continue;
     }
-    const item = checklistItem(block);
+    const item = checklistItem(block, section === 'shopping' ? subcategory : undefined);
     if (!item) continue;
     if (section) result.blocks[section].push(item);
     else unsectionedItems.push(item);
@@ -429,6 +431,7 @@ function applyNotionChecklists(garage, checklists) {
       if (existing) {
         existing.name = parsed.name;
         existing.quantity = parsed.quantity;
+        existing.subcategory = item.subcategory;
         existing.status = item.checked ? 'Megérkezett' : 'Beszerzendő';
       } else {
         shoppingItems.push({
@@ -436,6 +439,7 @@ function applyNotionChecklists(garage, checklists) {
           name: parsed.name,
           quantity: parsed.quantity,
           category: 'Motoralkatrész',
+          subcategory: item.subcategory,
           bikeId: bike.id,
           status: item.checked ? 'Megérkezett' : 'Beszerzendő',
         });
