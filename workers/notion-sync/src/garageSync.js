@@ -426,7 +426,8 @@ function applyNotionChecklists(garage, checklists) {
       const parsed = parsedShoppingText(item.text);
       const existing = shoppingItems.find((shoppingItem) =>
         shoppingItem.bikeId === bike.id &&
-        normalizedChecklistText(shoppingItem.name) === normalizedChecklistText(parsed.name),
+        normalizedChecklistText(shoppingItem.name) === normalizedChecklistText(parsed.name) &&
+        (shoppingItem.subcategory === item.subcategory || shoppingItem.subcategory === undefined),
       );
       if (existing) {
         existing.name = parsed.name;
